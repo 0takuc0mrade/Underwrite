@@ -1,0 +1,42 @@
+[package]
+name = "underwrite-contracts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[dependencies]
+odra = { version = "2.8.1", default-features = false }
+odra-modules = { version = "2.8.1", default-features = false }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+odra-build = "2.8.1"
+odra-cli = { version = "2.8.1", default-features = false }
+odra-casper-livenet-env = { version = "2.8.1", optional = true }
+
+[dev-dependencies]
+odra-test = "2.8.1"
+hex.workspace = true
+
+[build-dependencies]
+odra-build = "2.8.1"
+
+[features]
+default = []
+livenet = ["dep:odra-casper-livenet-env"]
+
+[[bin]]
+name = "underwrite_build_contract"
+path = "bin/build_contract.rs"
+test = false
+
+[[bin]]
+name = "underwrite_build_schema"
+path = "bin/build_schema.rs"
+test = false
+
+[[bin]]
+name = "deploy_testnet"
+path = "bin/deploy_testnet.rs"
+required-features = ["livenet"]
+test = false

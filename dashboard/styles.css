@@ -1,0 +1,23 @@
+:root { --red:#ff2c2c; --black:#090909; --panel:#151515; --line:#333; --white:#f7f4ed; font-family:Arial,Helvetica,sans-serif; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--black); color:var(--white); }
+main { max-width:1260px; margin:auto; padding:28px 32px; }
+header { display:flex; justify-content:space-between; align-items:center; font:700 13px/1 monospace; letter-spacing:.12em; }
+.brand { font-size:20px; }.brand span { color:var(--red); }
+.network { display:flex; gap:10px; align-items:center; }.network i { width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 20px var(--red); }
+.hero { padding:110px 0 70px; }
+.hero p,.label { color:var(--red); font:700 11px/1 monospace; letter-spacing:.18em; }
+h1 { font-size:clamp(52px,7.8vw,104px);line-height:.88;letter-spacing:-.06em;margin:20px 0; }
+.rail { display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line); }
+.step { min-height:120px;padding:22px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;color:#888; }
+.step:last-child { border:0; }.step.active { color:var(--white); }.step.payout { background:var(--red);color:var(--white); }
+.step b { font:700 13px/1 monospace; }.step span { font-size:15px; }
+.console { display:grid;grid-template-columns:1.35fr .65fr;margin-top:22px;border:1px solid var(--line); }
+article { padding:32px;min-height:340px; }.settled { border-left:1px solid var(--line);display:flex;flex-direction:column; }
+h2 { font:700 25px/1.2 monospace;margin:28px 0; }
+dl { margin:0; }dl div { display:flex;justify-content:space-between;border-top:1px solid var(--line);padding:14px 0;gap:20px; }
+dt { color:#888; }dd { margin:0;font-family:monospace;text-align:right; }
+.seal { margin:28px 0 auto;width:max-content;border:1px solid var(--red);color:var(--red);padding:8px 12px;font:700 11px/1 monospace; }
+.settled strong { font-size:34px; }.settled span { color:#888;margin:8px 0 24px; }.settled a { color:var(--white);text-decoration:none;border-bottom:1px solid #555;padding-bottom:8px; }
+footer { color:#666;font:11px/1 monospace;letter-spacing:.13em;padding:30px 0; }
+@media(max-width:760px){.rail,.console{grid-template-columns:1fr}.step{border-right:0;border-bottom:1px solid var(--line)}.settled{border-left:0;border-top:1px solid var(--line)}}

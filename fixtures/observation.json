@@ -1,0 +1,15 @@
+{
+  "policy_number": "MRC-CRG-2026-00481",
+  "claimant": "account-hash-115d96efb1a8e35fbeea51e32bcbe158a9499d90255e36a6b1c370a90f21f8a1",
+  "tracking_id": "MAEU-784239160",
+  "carrier": "Maersk",
+  "origin_port": "SGSIN",
+  "destination_port": "NLRTM",
+  "status": "critical_delay",
+  "delay_hours": 75,
+  "insured_value_minor": 12500000,
+  "observed_at": 1782009900,
+  "expires_at": 1782096300,
+  "nonce": "obs_20260620_rotterdam_7f3a91",
+  "evidence_hash": "67d12388c8e77cecf9f90432d2bc41ad9f8d55df0d33ffcd48ae8ee5cf6ad693"
+}
