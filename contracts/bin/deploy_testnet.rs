@@ -1,5 +1,5 @@
 use odra::casper_types::U256;
-use odra::host::{Deployer, HostEnv, HostRef};
+use odra::host::{Deployer, HostEnv};
 use odra::prelude::*;
 use underwrite_contracts::{
     settlement::{UnderwriteSettlement, UnderwriteSettlementInitArgs},
@@ -26,7 +26,9 @@ fn main() {
     );
     token.transfer(&settlement.address(), &U256::from(50_000_000u64));
 
-    println!("SettlementToken: {}", token.address());
-    println!("UnderwriteSettlement: {}", settlement.address());
-    println!("Agent: {}", agent);
+    println!("SettlementToken: {:?}", token.address());
+    println!("UnderwriteSettlement: {:?}", settlement.address());
+    println!("Vault: {:?}", settlement.address());
+    println!("Agent: {:?}", agent);
+    println!("VaultFundingMinor: 50000000");
 }

@@ -3,3 +3,5 @@ target/
 resources/
 contract.env
 *.log
+deployments/casper-testnet.json
+deployments/latest-attestation.json

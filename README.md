@@ -177,9 +177,39 @@ Install Odra tooling, then build the contracts:
 
 ```bash
 cargo install cargo-odra
-cd contracts
-cargo odra build
+scripts/build-contracts.sh
 ```
+
+## Casper Testnet Deployment
+
+Copy `.env.example` to `.env`, fill the Testnet account values, then follow
+`DEPLOYMENT.md`.
+
+Primary commands:
+
+```bash
+scripts/build-contracts.sh
+scripts/deploy-testnet.sh
+scripts/register-policy.sh
+scripts/run-agent.sh
+scripts/submit-claim.sh
+scripts/attempt-duplicate-claim.sh
+scripts/attempt-stale-claim.sh
+```
+
+Automated today:
+
+- local workspace verification
+- Odra livenet deploy for token + settlement + vault funding
+- generic risk-attestation agent run
+- evidence JSON initialization/update helper
+
+Manual or pending:
+
+- deploy hash capture from node/explorer output
+- policy registration call helper
+- claim submission call helper
+- duplicate/stale Testnet rejection evidence
 
 ## Casper Testnet Deployment Evidence
 
@@ -198,7 +228,14 @@ run.
 | Stale claim rejection evidence | Pending | TBD |
 | Explorer links | Pending | TBD |
 
-Use `deployments/casper-testnet.example.json` as the deployment evidence shape.
+Use `deployments/casper-testnet.example.json` as the committed evidence shape.
+Write real evidence to ignored file `deployments/casper-testnet.json`:
+
+```bash
+node scripts/record-evidence.mjs init
+node scripts/record-evidence.mjs set contract=<address> token=<address>
+node scripts/record-evidence.mjs note "policy registration pending"
+```
 
 ## Demo Path
 

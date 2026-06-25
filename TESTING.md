@@ -141,8 +141,26 @@ cargo test -p underwrite-agent
 cargo test --workspace
 cargo run -p underwrite-agent -- fixtures/signed-observation.json
 cargo run -p underwrite-agent -- fixtures/signed-risk-attestation.cargo-delay.json
+node scripts/record-evidence.mjs init
 ```
 
 For Casper Testnet evidence, also capture deploy hashes, contract addresses,
 policy registration output, successful claim settlement, and at least one
 rejection case.
+
+## Deployment Script Checks
+
+The deployment scripts are intentionally honest about what is automated versus
+manual. Before recording Testnet evidence, check:
+
+```bash
+scripts/build-contracts.sh
+scripts/run-agent.sh
+scripts/register-policy.sh
+scripts/submit-claim.sh
+scripts/attempt-duplicate-claim.sh
+scripts/attempt-stale-claim.sh
+```
+
+`scripts/deploy-testnet.sh` requires a real `.env` with funded Casper Testnet
+credentials. Do not run it until the account and secret key path are ready.
