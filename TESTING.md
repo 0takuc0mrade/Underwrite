@@ -29,14 +29,15 @@ cargo test -p underwrite-agent
 Expected result:
 
 ```text
-running 3 tests
+running 4 tests
 test tests::rejects_mismatched_oracle_key ... ok
 test tests::rejects_modified_evidence ... ok
 test tests::verifies_and_builds_attestation ... ok
-test result: ok. 3 passed
+test tests::verifies_generic_risk_attestation ... ok
+test result: ok. 4 passed
 ```
 
-## Agent Fixture Attestation
+## Agent Fixture Attestations
 
 ```bash
 cargo run -p underwrite-agent -- fixtures/signed-observation.json
@@ -49,6 +50,27 @@ Expected important fields:
   "delay_hours": 75,
   "payout_percentage": 50,
   "payout_amount_minor": 6250000
+}
+```
+
+The generic risk-attestation fixture is also supported:
+
+```bash
+cargo run -p underwrite-agent -- fixtures/signed-risk-attestation.cargo-delay.json
+```
+
+Expected important fields:
+
+```json
+{
+  "template": "cargo_delay",
+  "policy_id": "MRC-CRG-2026-00481",
+  "risk_event": "cargo_delay",
+  "trigger_metric": "delay_hours",
+  "trigger_value": 75,
+  "payout_percentage": 50,
+  "payout_amount_minor": 6250000,
+  "attestation_hash": "..."
 }
 ```
 
@@ -118,6 +140,7 @@ Run and capture:
 cargo test -p underwrite-agent
 cargo test --workspace
 cargo run -p underwrite-agent -- fixtures/signed-observation.json
+cargo run -p underwrite-agent -- fixtures/signed-risk-attestation.cargo-delay.json
 ```
 
 For Casper Testnet evidence, also capture deploy hashes, contract addresses,

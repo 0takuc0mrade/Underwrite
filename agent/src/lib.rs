@@ -13,6 +13,15 @@ pub enum ShipmentStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CoverageTemplate {
+    CargoDelay,
+    TreasuryDrawdown,
+    LpRiskCover,
+    RwaDefault,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaimObservation {
     pub policy_number: String,
     pub claimant: String,
@@ -37,6 +46,44 @@ pub struct SignedObservation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskAttestationPayload {
+    pub schema: String,
+    pub template: CoverageTemplate,
+    pub policy_id: String,
+    pub covered_subject: String,
+    pub risk_event: String,
+    pub trigger_metric: String,
+    pub trigger_value: u64,
+    pub status: ShipmentStatus,
+    pub claimant: String,
+    pub insured_value_minor: u64,
+    pub evidence_hash: String,
+    pub observed_at: u64,
+    pub expires_at: u64,
+    pub nonce: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskAttestation {
+    pub schema: String,
+    pub template: CoverageTemplate,
+    pub policy_id: String,
+    pub covered_subject: String,
+    pub risk_event: String,
+    pub trigger_metric: String,
+    pub trigger_value: u64,
+    pub status: ShipmentStatus,
+    pub claimant: String,
+    pub insured_value_minor: u64,
+    pub evidence_hash: String,
+    pub observed_at: u64,
+    pub expires_at: u64,
+    pub nonce: String,
+    pub oracle_public_key: String,
+    pub signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaimAttestation {
     pub claim_id: String,
     pub policy_number: String,
@@ -52,6 +99,19 @@ pub struct ClaimAttestation {
     pub claim_id_signature: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RiskAttestationReport {
+    pub template: CoverageTemplate,
+    pub policy_id: String,
+    pub risk_event: String,
+    pub trigger_metric: String,
+    pub trigger_value: u64,
+    pub payout_percentage: u8,
+    pub payout_amount_minor: u64,
+    pub attestation_hash: String,
+    pub claim_attestation: ClaimAttestation,
+}
+
 #[derive(Debug, Error)]
 pub enum AgentError {
     #[error("invalid oracle public key")]
@@ -62,6 +122,8 @@ pub enum AgentError {
     InvalidSignature,
     #[error("observation does not qualify")]
     NonQualifying,
+    #[error("unsupported coverage template")]
+    UnsupportedTemplate,
 }
 
 pub fn canonical_observation(observation: &ClaimObservation) -> Vec<u8> {
@@ -70,6 +132,33 @@ pub fn canonical_observation(observation: &ClaimObservation) -> Vec<u8> {
 
 pub fn claim_id(observation: &ClaimObservation) -> String {
     hex::encode(Sha256::digest(canonical_observation(observation)))
+}
+
+pub fn canonical_risk_payload(payload: &RiskAttestationPayload) -> Vec<u8> {
+    serde_json::to_vec(payload).expect("risk payload serialization cannot fail")
+}
+
+pub fn risk_attestation_payload(attestation: &RiskAttestation) -> RiskAttestationPayload {
+    RiskAttestationPayload {
+        schema: attestation.schema.clone(),
+        template: attestation.template.clone(),
+        policy_id: attestation.policy_id.clone(),
+        covered_subject: attestation.covered_subject.clone(),
+        risk_event: attestation.risk_event.clone(),
+        trigger_metric: attestation.trigger_metric.clone(),
+        trigger_value: attestation.trigger_value,
+        status: attestation.status.clone(),
+        claimant: attestation.claimant.clone(),
+        insured_value_minor: attestation.insured_value_minor,
+        evidence_hash: attestation.evidence_hash.clone(),
+        observed_at: attestation.observed_at,
+        expires_at: attestation.expires_at,
+        nonce: attestation.nonce.clone(),
+    }
+}
+
+pub fn risk_attestation_id(payload: &RiskAttestationPayload) -> String {
+    hex::encode(Sha256::digest(canonical_risk_payload(payload)))
 }
 
 pub fn payout_percentage(status: &ShipmentStatus, delay_hours: u64) -> u8 {
@@ -83,6 +172,12 @@ pub fn payout_percentage(status: &ShipmentStatus, delay_hours: u64) -> u8 {
         120..=239 => 75,
         _ => 100,
     }
+}
+
+pub fn attestation_hash(attestation: &ClaimAttestation) -> String {
+    hex::encode(Sha256::digest(
+        serde_json::to_vec(attestation).expect("attestation serialization cannot fail"),
+    ))
 }
 
 pub fn verify_and_attest(
@@ -137,6 +232,76 @@ pub fn verify_and_attest(
     })
 }
 
+pub fn verify_risk_attestation(
+    signed: &RiskAttestation,
+    oracle_signing_key: &SigningKey,
+) -> Result<RiskAttestationReport, AgentError> {
+    if !matches!(signed.template, CoverageTemplate::CargoDelay) {
+        return Err(AgentError::UnsupportedTemplate);
+    }
+
+    let public_key_bytes: [u8; 32] = hex::decode(&signed.oracle_public_key)
+        .map_err(|_| AgentError::InvalidPublicKey)?
+        .try_into()
+        .map_err(|_| AgentError::InvalidPublicKey)?;
+    let public_key =
+        VerifyingKey::from_bytes(&public_key_bytes).map_err(|_| AgentError::InvalidPublicKey)?;
+    if oracle_signing_key.verifying_key() != public_key {
+        return Err(AgentError::OracleKeyMismatch);
+    }
+
+    let signature_bytes: [u8; 64] = hex::decode(&signed.signature)
+        .map_err(|_| AgentError::InvalidSignature)?
+        .try_into()
+        .map_err(|_| AgentError::InvalidSignature)?;
+    let payload = risk_attestation_payload(signed);
+    public_key
+        .verify(
+            &canonical_risk_payload(&payload),
+            &Signature::from_bytes(&signature_bytes),
+        )
+        .map_err(|_| AgentError::InvalidSignature)?;
+
+    let percentage = payout_percentage(&signed.status, signed.trigger_value);
+    if percentage == 0 {
+        return Err(AgentError::NonQualifying);
+    }
+
+    let claim_id = risk_attestation_id(&payload);
+    let claim_id_signature = oracle_signing_key.sign(claim_id.as_bytes());
+    let claim_attestation = ClaimAttestation {
+        claim_id,
+        policy_number: signed.policy_id.clone(),
+        claimant: signed.claimant.clone(),
+        evidence_hash: signed.evidence_hash.clone(),
+        status_code: match signed.status {
+            ShipmentStatus::OnTime => 0,
+            ShipmentStatus::Delayed => 1,
+            ShipmentStatus::CriticalDelay => 2,
+            ShipmentStatus::Lost => 3,
+        },
+        delay_hours: signed.trigger_value,
+        payout_percentage: percentage,
+        payout_amount_minor: signed.insured_value_minor * u64::from(percentage) / 100,
+        observed_at: signed.observed_at,
+        expires_at: signed.expires_at,
+        public_key: hex::encode(oracle_signing_key.verifying_key().as_bytes()),
+        claim_id_signature: hex::encode(claim_id_signature.to_bytes()),
+    };
+
+    Ok(RiskAttestationReport {
+        template: signed.template.clone(),
+        policy_id: signed.policy_id.clone(),
+        risk_event: signed.risk_event.clone(),
+        trigger_metric: signed.trigger_metric.clone(),
+        trigger_value: signed.trigger_value,
+        payout_percentage: claim_attestation.payout_percentage,
+        payout_amount_minor: claim_attestation.payout_amount_minor,
+        attestation_hash: attestation_hash(&claim_attestation),
+        claim_attestation,
+    })
+}
+
 pub fn sign_observation(
     observation: ClaimObservation,
     signing_key: &SigningKey,
@@ -145,6 +310,31 @@ pub fn sign_observation(
     SignedObservation {
         observation,
         public_key: hex::encode(signing_key.verifying_key().as_bytes()),
+        signature: hex::encode(signature.to_bytes()),
+    }
+}
+
+pub fn sign_risk_attestation(
+    payload: RiskAttestationPayload,
+    signing_key: &SigningKey,
+) -> RiskAttestation {
+    let signature = signing_key.sign(&canonical_risk_payload(&payload));
+    RiskAttestation {
+        schema: payload.schema,
+        template: payload.template,
+        policy_id: payload.policy_id,
+        covered_subject: payload.covered_subject,
+        risk_event: payload.risk_event,
+        trigger_metric: payload.trigger_metric,
+        trigger_value: payload.trigger_value,
+        status: payload.status,
+        claimant: payload.claimant,
+        insured_value_minor: payload.insured_value_minor,
+        evidence_hash: payload.evidence_hash,
+        observed_at: payload.observed_at,
+        expires_at: payload.expires_at,
+        nonce: payload.nonce,
+        oracle_public_key: hex::encode(signing_key.verifying_key().as_bytes()),
         signature: hex::encode(signature.to_bytes()),
     }
 }
@@ -171,6 +361,28 @@ mod tests {
             nonce: "obs_20260620_rotterdam_7f3a91".to_string(),
             evidence_hash: "67d12388c8e77cecf9f90432d2bc41ad9f8d55df0d33ffcd48ae8ee5cf6ad693"
                 .to_string(),
+        }
+    }
+
+    fn risk_payload(delay_hours: u64) -> RiskAttestationPayload {
+        RiskAttestationPayload {
+            schema: "underwrite.risk-attestation.v1".to_string(),
+            template: CoverageTemplate::CargoDelay,
+            policy_id: "MRC-CRG-2026-00481".to_string(),
+            covered_subject: "MAEU-784239160".to_string(),
+            risk_event: "cargo_delay".to_string(),
+            trigger_metric: "delay_hours".to_string(),
+            trigger_value: delay_hours,
+            status: ShipmentStatus::CriticalDelay,
+            claimant:
+                "account-hash-115d96efb1a8e35fbeea51e32bcbe158a9499d90255e36a6b1c370a90f21f8a1"
+                    .to_string(),
+            insured_value_minor: 12_500_000,
+            evidence_hash: "67d12388c8e77cecf9f90432d2bc41ad9f8d55df0d33ffcd48ae8ee5cf6ad693"
+                .to_string(),
+            observed_at: 1_782_009_900,
+            expires_at: 1_782_096_300,
+            nonce: "risk_20260620_cargo_delay_7f3a91".to_string(),
         }
     }
 
@@ -203,5 +415,21 @@ mod tests {
             verify_and_attest(&signed, &other_key),
             Err(AgentError::OracleKeyMismatch)
         ));
+    }
+
+    #[test]
+    fn verifies_generic_risk_attestation() {
+        let key = SigningKey::from_bytes(&[9; 32]);
+        let signed = sign_risk_attestation(risk_payload(75), &key);
+        let report = verify_risk_attestation(&signed, &key).unwrap();
+
+        assert!(matches!(report.template, CoverageTemplate::CargoDelay));
+        assert_eq!(report.policy_id, "MRC-CRG-2026-00481");
+        assert_eq!(report.risk_event, "cargo_delay");
+        assert_eq!(report.trigger_metric, "delay_hours");
+        assert_eq!(report.trigger_value, 75);
+        assert_eq!(report.payout_percentage, 50);
+        assert_eq!(report.payout_amount_minor, 6_250_000);
+        assert_eq!(report.attestation_hash.len(), 64);
     }
 }

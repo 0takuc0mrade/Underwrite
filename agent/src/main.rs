@@ -1,6 +1,9 @@
 use ed25519_dalek::SigningKey;
 use std::{env, fs};
-use underwrite_agent::{sign_observation, verify_and_attest, ClaimObservation, SignedObservation};
+use underwrite_agent::{
+    sign_observation, sign_risk_attestation, verify_and_attest, verify_risk_attestation,
+    ClaimObservation, RiskAttestation, RiskAttestationPayload, SignedObservation,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -23,13 +26,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    if args.get(1).is_some_and(|arg| arg == "sign-risk") {
+        let path = args
+            .get(2)
+            .cloned()
+            .unwrap_or_else(|| "fixtures/risk-attestation.cargo-delay.payload.json".to_string());
+        let payload: RiskAttestationPayload = serde_json::from_slice(&fs::read(path)?)?;
+        let signed = sign_risk_attestation(payload, &signing_key);
+        println!("{}", serde_json::to_string_pretty(&signed)?);
+        return Ok(());
+    }
+
     let path = args
         .get(1)
         .cloned()
         .unwrap_or_else(|| "fixtures/signed-observation.json".to_string());
-    let signed: SignedObservation = serde_json::from_slice(&fs::read(&path)?)?;
+    let bytes = fs::read(&path)?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes)?;
 
-    let attestation = verify_and_attest(&signed, &signing_key)?;
-    println!("{}", serde_json::to_string_pretty(&attestation)?);
+    if value.get("observation").is_some() {
+        let signed: SignedObservation = serde_json::from_value(value)?;
+        let attestation = verify_and_attest(&signed, &signing_key)?;
+        println!("{}", serde_json::to_string_pretty(&attestation)?);
+    } else {
+        let signed: RiskAttestation = serde_json::from_value(value)?;
+        let report = verify_risk_attestation(&signed, &signing_key)?;
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    }
     Ok(())
 }

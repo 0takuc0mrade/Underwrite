@@ -1,0 +1,18 @@
+{
+  "schema": "underwrite.risk-attestation.v1",
+  "template": "cargo_delay",
+  "policy_id": "MRC-CRG-2026-00481",
+  "covered_subject": "MAEU-784239160",
+  "risk_event": "cargo_delay",
+  "trigger_metric": "delay_hours",
+  "trigger_value": 75,
+  "status": "critical_delay",
+  "claimant": "account-hash-115d96efb1a8e35fbeea51e32bcbe158a9499d90255e36a6b1c370a90f21f8a1",
+  "insured_value_minor": 12500000,
+  "evidence_hash": "67d12388c8e77cecf9f90432d2bc41ad9f8d55df0d33ffcd48ae8ee5cf6ad693",
+  "observed_at": 1782009900,
+  "expires_at": 1782096300,
+  "nonce": "risk_20260620_cargo_delay_7f3a91",
+  "oracle_public_key": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618",
+  "signature": "6081440692f66d902eaebea91f44410aefd82077b867b61318c57d5bf46f8d5f6531a3b3053e321062c0c0e1b8a54b860e79b6f8b66e77b690c73a13bf5e3f01"
+}

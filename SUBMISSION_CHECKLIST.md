@@ -17,6 +17,7 @@ submission.
 - [ ] Run `cargo test -p underwrite-agent`.
 - [ ] Run `cargo test --workspace`.
 - [ ] Run `cargo run -p underwrite-agent -- fixtures/signed-observation.json`.
+- [ ] Run `cargo run -p underwrite-agent -- fixtures/signed-risk-attestation.cargo-delay.json`.
 - [ ] Save attestation output.
 - [ ] Save test output logs.
 
@@ -34,9 +35,9 @@ submission.
 
 ## Policy And Claim Flow
 
-- [ ] Register policy on Testnet.
+- [ ] Register `cargo_delay` risk policy on Testnet.
 - [ ] Capture policy registration deploy hash.
-- [ ] Run agent on signed fixture.
+- [ ] Run agent on signed generic risk-attestation fixture.
 - [ ] Submit valid claim attestation.
 - [ ] Capture valid claim deploy hash.
 - [ ] Confirm payout amount in minor units.
@@ -58,7 +59,7 @@ submission.
 - [ ] Add Testnet addresses and deploy hashes to README.
 - [ ] Add screenshots or terminal captures.
 - [ ] Record a demo under five minutes.
-- [ ] Show signed evidence in.
+- [ ] Show signed risk attestation in.
 - [ ] Show agent attestation.
 - [ ] Show Casper contract verification.
 - [ ] Show vault payout.
@@ -66,8 +67,9 @@ submission.
 
 ## Submission
 
-- [ ] Confirm the product is framed as Underwrite Lite.
-- [ ] Avoid marketplace, x402, NFT, or broad insurance claims in public copy.
+- [ ] Confirm the product is framed as Underwrite Lite: a Casper-native risk settlement primitive.
+- [ ] Explain that cargo delay is the first working template, not the whole product.
+- [ ] Avoid marketplace, x402, NFT, real CSPR.trade integration, or broad insurance claims in public copy.
 - [ ] Submit repository link.
 - [ ] Submit demo video.
 - [ ] Submit Testnet evidence.
