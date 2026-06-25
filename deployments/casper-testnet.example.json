@@ -1,0 +1,21 @@
+{
+  "network": "casper-testnet",
+  "underwriteContract": "TBD",
+  "settlementToken": "TBD",
+  "vault": "TBD",
+  "policyId": "MRC-CRG-2026-00481",
+  "agentAccount": "TBD",
+  "oraclePublicKey": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618",
+  "validClaimDeployHash": "TBD",
+  "duplicateClaimDeployHash": "TBD",
+  "staleClaimDeployHash": "TBD",
+  "payoutAmountMinor": 6250000,
+  "attestationHash": "TBD",
+  "explorerLinks": {
+    "underwriteContract": "TBD",
+    "settlementToken": "TBD",
+    "validClaim": "TBD",
+    "duplicateClaim": "TBD",
+    "staleClaim": "TBD"
+  }
+}

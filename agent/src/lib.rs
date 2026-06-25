@@ -93,8 +93,8 @@ pub fn verify_and_attest(
         .map_err(|_| AgentError::InvalidPublicKey)?
         .try_into()
         .map_err(|_| AgentError::InvalidPublicKey)?;
-    let public_key = VerifyingKey::from_bytes(&public_key_bytes)
-        .map_err(|_| AgentError::InvalidPublicKey)?;
+    let public_key =
+        VerifyingKey::from_bytes(&public_key_bytes).map_err(|_| AgentError::InvalidPublicKey)?;
     if oracle_signing_key.verifying_key() != public_key {
         return Err(AgentError::OracleKeyMismatch);
     }
@@ -109,10 +109,7 @@ pub fn verify_and_attest(
         )
         .map_err(|_| AgentError::InvalidSignature)?;
 
-    let percentage = payout_percentage(
-        &signed.observation.status,
-        signed.observation.delay_hours,
-    );
+    let percentage = payout_percentage(&signed.observation.status, signed.observation.delay_hours);
     if percentage == 0 {
         return Err(AgentError::NonQualifying);
     }
@@ -132,9 +129,7 @@ pub fn verify_and_attest(
         },
         delay_hours: signed.observation.delay_hours,
         payout_percentage: percentage,
-        payout_amount_minor: signed.observation.insured_value_minor
-            * u64::from(percentage)
-            / 100,
+        payout_amount_minor: signed.observation.insured_value_minor * u64::from(percentage) / 100,
         observed_at: signed.observation.observed_at,
         expires_at: signed.observation.expires_at,
         public_key: hex::encode(oracle_signing_key.verifying_key().as_bytes()),
@@ -174,9 +169,8 @@ mod tests {
             observed_at: 1_782_009_900,
             expires_at: 1_782_096_300,
             nonce: "obs_20260620_rotterdam_7f3a91".to_string(),
-            evidence_hash:
-                "67d12388c8e77cecf9f90432d2bc41ad9f8d55df0d33ffcd48ae8ee5cf6ad693"
-                    .to_string(),
+            evidence_hash: "67d12388c8e77cecf9f90432d2bc41ad9f8d55df0d33ffcd48ae8ee5cf6ad693"
+                .to_string(),
         }
     }
 

@@ -140,11 +140,10 @@ impl UnderwriteSettlement {
         if policy.oracle_public_key != public_key.to_string() {
             self.env().revert(Error::InvalidOracle);
         }
-        if !self.env().verify_signature(
-            &Bytes::from(claim_id.as_bytes()),
-            &signature,
-            &public_key,
-        ) {
+        if !self
+            .env()
+            .verify_signature(&Bytes::from(claim_id.as_bytes()), &signature, &public_key)
+        {
             self.env().revert(Error::InvalidSignature);
         }
 
@@ -163,8 +162,7 @@ impl UnderwriteSettlement {
         if payout_percentage == 0 {
             self.env().revert(Error::NonQualifyingClaim);
         }
-        let expected_amount =
-            policy.insured_value_minor * u64::from(payout_percentage) / 100;
+        let expected_amount = policy.insured_value_minor * u64::from(payout_percentage) / 100;
         if payout_amount_minor == 0 || payout_amount_minor != expected_amount {
             self.env().revert(Error::InvalidPayout);
         }
@@ -243,13 +241,18 @@ mod tests {
     use odra::host::{Deployer, HostRef};
 
     const POLICY: &str = "MRC-CRG-2026-00481";
+    const EVIDENCE_HASH: &str = "evidence-67d123";
+    const INSURED_VALUE: u64 = 12_500_000;
+    const VAULT_FUNDING: u64 = 50_000_000;
 
-    fn setup() -> (
-        UnderwriteSettlementHostRef,
-        crate::token::SettlementTokenHostRef,
-        Address,
-        PublicKey,
-    ) {
+    struct TestSetup {
+        settlement: UnderwriteSettlementHostRef,
+        token: crate::token::SettlementTokenHostRef,
+        oracle_account: Address,
+        public_key: PublicKey,
+    }
+
+    fn setup_with_policy(insured_value_minor: u64, vault_funding: u64) -> TestSetup {
         let env = odra_test::env();
         let owner = env.get_account(0);
         let agent = env.get_account(1);
@@ -271,18 +274,59 @@ mod tests {
                 token_address: token.address(),
             },
         );
-        token.transfer(&settlement.address(), &U256::from(50_000_000u64));
+        token.transfer(&settlement.address(), &U256::from(vault_funding));
         settlement.register_policy(
             POLICY.to_string(),
             claimant,
-            12_500_000,
+            insured_value_minor,
             "USD".to_string(),
             public_key.to_string(),
         );
-        (settlement, token, oracle_account, public_key)
+        TestSetup {
+            settlement,
+            token,
+            oracle_account,
+            public_key,
+        }
     }
 
+    fn setup() -> TestSetup {
+        setup_with_policy(INSURED_VALUE, VAULT_FUNDING)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn settle(
+        settlement: &mut UnderwriteSettlementHostRef,
+        oracle_account: Address,
+        public_key: PublicKey,
+        claim_id: &str,
+        caller: Address,
+        claimant: Address,
+        status: u8,
+        delay_hours: u64,
+        payout: u64,
+        observed_at: u64,
+        expires_at: u64,
+    ) -> Result<(), OdraError> {
+        let env = settlement.env().clone();
+        let signature = env.sign_message(&Bytes::from(claim_id.as_bytes()), &oracle_account);
+        env.set_caller(caller);
+        settlement.try_settle_claim(
+            claim_id.to_string(),
+            POLICY.to_string(),
+            claimant,
+            EVIDENCE_HASH.to_string(),
+            status,
+            delay_hours,
+            payout,
+            observed_at,
+            expires_at,
+            signature,
+            public_key,
+        )
+    }
+
+    fn settle_valid(
         settlement: &mut UnderwriteSettlementHostRef,
         oracle_account: Address,
         public_key: PublicKey,
@@ -290,23 +334,18 @@ mod tests {
         payout: u64,
     ) -> Result<(), OdraError> {
         let env = settlement.env().clone();
-        let agent = env.get_account(1);
-        let claimant = env.get_account(2);
-        let claim_id = format!("claim-{delay_hours}");
-        let signature = env.sign_message(&Bytes::from(claim_id.as_bytes()), &oracle_account);
-        env.set_caller(agent);
-        settlement.try_settle_claim(
-            claim_id,
-            POLICY.to_string(),
-            claimant,
-            "evidence-67d123".to_string(),
+        settle(
+            settlement,
+            oracle_account,
+            public_key,
+            &format!("claim-{delay_hours}"),
+            env.get_account(1),
+            env.get_account(2),
             2,
             delay_hours,
             payout,
             0,
-            3600,
-            signature,
-            public_key,
+            3_600,
         )
     }
 
@@ -323,37 +362,167 @@ mod tests {
     }
 
     #[test]
+    fn policy_registration_succeeds() {
+        let setup = setup();
+        let claimant = setup.settlement.env().get_account(2);
+        let policy = setup.settlement.policy(POLICY.to_string()).unwrap();
+
+        assert_eq!(policy.claimant, claimant);
+        assert_eq!(policy.insured_value_minor, INSURED_VALUE);
+        assert_eq!(policy.currency, "USD");
+        assert_eq!(policy.oracle_public_key, setup.public_key.to_string());
+        assert!(policy.active);
+    }
+
+    #[test]
     fn qualifying_claim_transfers_cep18_tokens() {
-        let (mut settlement, token, oracle_account, public_key) = setup();
-        let claimant = settlement.env().get_account(2);
-        settle(
-            &mut settlement,
-            oracle_account,
-            public_key,
+        let mut setup = setup();
+        let claimant = setup.settlement.env().get_account(2);
+        settle_valid(
+            &mut setup.settlement,
+            setup.oracle_account,
+            setup.public_key,
             75,
             6_250_000,
         )
         .unwrap();
-        assert_eq!(token.balance_of(&claimant), U256::from(6_250_000u64));
-        assert!(settlement.is_processed("claim-75".to_string()));
+        assert_eq!(setup.token.balance_of(&claimant), U256::from(6_250_000u64));
+        assert!(setup.settlement.is_processed("claim-75".to_string()));
+    }
+
+    #[test]
+    fn valid_claim_stores_settlement_record() {
+        let mut setup = setup();
+        let claimant = setup.settlement.env().get_account(2);
+        settle_valid(
+            &mut setup.settlement,
+            setup.oracle_account,
+            setup.public_key,
+            75,
+            6_250_000,
+        )
+        .unwrap();
+
+        let record = setup.settlement.claim("claim-75".to_string()).unwrap();
+        assert_eq!(record.policy_number, POLICY);
+        assert_eq!(record.claimant, claimant);
+        assert_eq!(record.evidence_hash, EVIDENCE_HASH);
+        assert_eq!(record.payout_percentage, 50);
+        assert_eq!(record.payout_amount_minor, 6_250_000);
+    }
+
+    #[test]
+    fn unauthorized_agent_is_rejected() {
+        let mut setup = setup();
+        let env = setup.settlement.env().clone();
+        assert_eq!(
+            settle(
+                &mut setup.settlement,
+                setup.oracle_account,
+                setup.public_key,
+                "claim-unauthorized",
+                env.get_account(4),
+                env.get_account(2),
+                2,
+                75,
+                6_250_000,
+                0,
+                3_600,
+            )
+            .unwrap_err(),
+            Error::NotAgent.into()
+        );
+    }
+
+    #[test]
+    fn wrong_oracle_public_key_is_rejected() {
+        let mut setup = setup();
+        let env = setup.settlement.env().clone();
+        let wrong_public_key = env.public_key(&env.get_account(4));
+        assert_eq!(
+            settle(
+                &mut setup.settlement,
+                setup.oracle_account,
+                wrong_public_key,
+                "claim-wrong-oracle",
+                env.get_account(1),
+                env.get_account(2),
+                2,
+                75,
+                6_250_000,
+                0,
+                3_600,
+            )
+            .unwrap_err(),
+            Error::InvalidOracle.into()
+        );
+    }
+
+    #[test]
+    fn stale_claim_is_rejected() {
+        let mut setup = setup();
+        let env = setup.settlement.env().clone();
+        env.advance_block_time(MAX_CLAIM_AGE_SECONDS + 1);
+        let now = env.block_time();
+        assert_eq!(
+            settle(
+                &mut setup.settlement,
+                setup.oracle_account,
+                setup.public_key,
+                "claim-stale",
+                env.get_account(1),
+                env.get_account(2),
+                2,
+                75,
+                6_250_000,
+                0,
+                now + 3_600,
+            )
+            .unwrap_err(),
+            Error::StaleClaim.into()
+        );
+    }
+
+    #[test]
+    fn expired_claim_is_rejected() {
+        let mut setup = setup();
+        let env = setup.settlement.env().clone();
+        env.advance_block_time(100);
+        assert_eq!(
+            settle(
+                &mut setup.settlement,
+                setup.oracle_account,
+                setup.public_key,
+                "claim-expired",
+                env.get_account(1),
+                env.get_account(2),
+                2,
+                75,
+                6_250_000,
+                0,
+                99,
+            )
+            .unwrap_err(),
+            Error::ExpiredClaim.into()
+        );
     }
 
     #[test]
     fn duplicate_claim_is_rejected() {
-        let (mut settlement, _, oracle_account, public_key) = setup();
-        settle(
-            &mut settlement,
-            oracle_account,
-            public_key.clone(),
+        let mut setup = setup();
+        settle_valid(
+            &mut setup.settlement,
+            setup.oracle_account,
+            setup.public_key.clone(),
             75,
             6_250_000,
         )
         .unwrap();
         assert_eq!(
-            settle(
-                &mut settlement,
-                oracle_account,
-                public_key,
+            settle_valid(
+                &mut setup.settlement,
+                setup.oracle_account,
+                setup.public_key,
                 75,
                 6_250_000,
             )
@@ -364,11 +533,30 @@ mod tests {
 
     #[test]
     fn incorrect_payout_is_rejected() {
-        let (mut settlement, _, oracle_account, public_key) = setup();
+        let mut setup = setup();
         assert_eq!(
-            settle(&mut settlement, oracle_account, public_key, 75, 1)
-                .unwrap_err(),
+            settle_valid(
+                &mut setup.settlement,
+                setup.oracle_account,
+                setup.public_key,
+                75,
+                1,
+            )
+            .unwrap_err(),
             Error::InvalidPayout.into()
         );
+    }
+
+    #[test]
+    fn insufficient_vault_funds_are_rejected() {
+        let mut setup = setup_with_policy(100_000_000, 1_000);
+        assert!(settle_valid(
+            &mut setup.settlement,
+            setup.oracle_account,
+            setup.public_key,
+            75,
+            50_000_000,
+        )
+        .is_err());
     }
 }

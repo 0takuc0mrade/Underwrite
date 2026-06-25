@@ -1,49 +1,119 @@
 # Underwrite
 
-A Casper-native state machine for parametric cargo insurance settlement.
+Underwrite is a Casper-native autonomous parametric settlement primitive for
+logistics insurance. It is intentionally narrow: signed evidence comes in,
+deterministic checks run, and a funded vault settles a valid claim.
 
-Authenticated evidence enters the protocol, deterministic policy rules calculate
-the permitted payout, and a funded CEP-18 vault transfers settlement tokens to
-the policyholder.
-
-## Protocol
+This is Underwrite Lite, not an insurance marketplace. There are no policy
+NFTs, no x402 payments, and no broad quote workflow in this repository. The
+submission spine is:
 
 ```text
-signed cargo observation
-          |
-          v
- autonomous Rust agent
- signature + policy evaluation
-          |
-          v
- UnderwriteSettlement (Odra)
- policy / oracle / freshness / replay checks
-          |
-          v
- CEP-18 settlement token transfer
+signed evidence
+  -> autonomous Rust agent attestation
+  -> Casper contract verification
+  -> CEP-18 vault payout
 ```
 
-## Contract architecture
+## Underwrite Lite Flow
 
-- `SettlementToken` wraps Odra's CEP-18 implementation.
-- `UnderwriteSettlement` stores policies, the authorized agent, processed claim
-  IDs, evidence hashes, and settlement records.
-- The settlement contract verifies a Casper-compatible Ed25519 signature over
-  the claim ID before moving tokens.
-- Payout tiers are enforced on-chain at 48, 72, 120, and 240 hours.
+1. A policy is registered on Casper with a claimant, insured value, currency,
+   and authorized oracle public key.
+2. A trusted oracle or evidence source signs a shipment observation.
+3. The off-chain Underwrite agent verifies the signature and deterministic
+   payout tier.
+4. The agent emits a claim attestation containing claim ID, policy ID,
+   evidence hash, claimant, payout, timestamp, oracle key, and signature.
+5. The Casper settlement contract checks the authorized agent, authorized
+   oracle key, policy existence, claimant, freshness, expiry, replay state, and
+   payout bounds.
+6. A valid claim is recorded and paid from the CEP-18 settlement vault.
+7. Duplicate, stale, unauthorized, malformed, non-qualifying, or over-limit
+   claims fail safely.
 
-## Test locally
+## Architecture
+
+```text
+fixtures/signed-observation.json
+          |
+          v
+underwrite-agent
+  - verifies Ed25519 oracle signature
+  - calculates deterministic payout tier
+  - signs claim ID for contract verification
+          |
+          v
+UnderwriteSettlement (Odra)
+  - policy registry
+  - authorized agent gate
+  - oracle public key check
+  - freshness and expiry checks
+  - replay protection
+  - deterministic payout bounds
+  - settlement record storage
+          |
+          v
+SettlementToken (CEP-18 wrapper)
+  - funded vault transfer to claimant
+```
+
+## Current Local Status
+
+Implemented:
+
+- Rust workspace with `contracts` and `agent`
+- Odra settlement contract and CEP-18 token wrapper
+- Policy registration and lookup
+- Authorized agent and oracle key checks
+- Claim replay protection
+- Freshness and expiry checks
+- Deterministic payout tiers at 48, 72, 120, and 240 hours
+- Settlement record storage
+- Agent-side Ed25519 verification and attestation generation
+- Realistic signed cargo-delay fixture
+- Static dashboard mockup for the protocol flow
+
+Verified locally:
 
 ```bash
+cargo test -p underwrite-agent
+cargo run -p underwrite-agent -- fixtures/signed-observation.json
+```
+
+The fixture produces a 75-hour delay attestation with a 50% payout tier and
+`6250000` minor units.
+
+Workspace contract tests pass under nightly Rust. Nightly is required because
+Odra 2.8.1 depends on `odra-macros`, which uses nightly-only `box_patterns`.
+This repo pins nightly in `rust-toolchain.toml`.
+
+## Test Commands
+
+```bash
+rustup toolchain install nightly --target wasm32-unknown-unknown
+cargo test -p underwrite-agent
 cargo test --workspace
 ```
 
-The contract tests deploy both contracts in OdraVM, fund the settlement contract
-with CEP-18 tokens, settle a claim, and test replay and payout failures.
+See `TESTING.md` for exact setup, expected output, and known limitations.
 
-## Build contracts
+## Agent CLI
 
-Install the Odra CLI, then build the contracts declared in `contracts/Odra.toml`:
+Create a signed fixture:
+
+```bash
+cargo run -p underwrite-agent -- sign fixtures/observation.json
+```
+
+Verify the bundled signed fixture and produce a claim attestation:
+
+```bash
+cargo run -p underwrite-agent -- fixtures/signed-observation.json
+```
+
+## Build Contracts
+
+Install Odra tooling, then build the contracts:
 
 ```bash
 cargo install cargo-odra
@@ -51,48 +121,38 @@ cd contracts
 cargo odra build
 ```
 
-## Casper Testnet
+## Casper Testnet Deployment Evidence
 
-Copy `.env.example` to `.env` and provide a funded Casper Testnet key.
+Deployment evidence is not complete yet. Fill this section after the Testnet
+run.
 
-```bash
-cargo run -p underwrite-contracts \
-  --features livenet \
-  --bin deploy_testnet
-```
+| Artifact | Status | Value |
+| --- | --- | --- |
+| Network | Pending | Casper Testnet |
+| Settlement token address | Pending | TBD |
+| Underwrite settlement address | Pending | TBD |
+| Vault funding deploy hash | Pending | TBD |
+| Policy registration deploy hash | Pending | TBD |
+| Valid claim deploy hash | Pending | TBD |
+| Duplicate claim rejection evidence | Pending | TBD |
+| Stale claim rejection evidence | Pending | TBD |
+| Explorer links | Pending | TBD |
 
-The command deploys the CEP-18 token, deploys `UnderwriteSettlement`, and funds
-the contract vault. Record the printed addresses in the submission deployment
-section.
-
-## Agent
-
-The agent verifies the oracle signature and emits a claim attestation suitable
-for the contract call:
-
-```bash
-cargo run -p underwrite-agent -- fixtures/signed-observation.json
-```
-
-Use the library helper `sign_observation` to create a signed fixture from
-`fixtures/observation.json`.
+Use `deployments/casper-testnet.example.json` as the deployment evidence shape.
 
 ## Dashboard
 
-Serve `dashboard/` with any static file server:
+Serve the static dashboard locally:
 
 ```bash
 python3 -m http.server 4174 --directory dashboard
 ```
 
-Replace the pending explorer link after the Testnet deployment.
+The dashboard is currently a protocol mockup. Replace the pending explorer link
+and static values after Testnet deployment.
 
-## Security cases
+## Security Scope
 
-The protocol rejects unauthorized callers, unknown or inactive policies,
-claimant mismatches, unauthorized oracle keys, bad signatures, stale or future
-observations, expired attestations, non-qualifying delays, incorrect payout
-amounts, and replayed claim IDs.
-
-Underwrite is unaudited hackathon software and must not custody production
-insurance funds.
+Underwrite is unaudited hackathon software. It is designed to demonstrate a
+small Casper-native parametric settlement primitive and must not custody
+production insurance funds without professional review.

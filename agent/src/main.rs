@@ -4,11 +4,12 @@ use underwrite_agent::{sign_observation, verify_and_attest, ClaimObservation, Si
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    let seed_hex = env::var("UNDERWRITE_ORACLE_SEED")
-        .unwrap_or_else(|_| "0909090909090909090909090909090909090909090909090909090909090909".to_string());
-    let seed: [u8; 32] = hex::decode(seed_hex)?.try_into().map_err(|_| {
-        "UNDERWRITE_ORACLE_SEED must contain exactly 32 bytes of hex"
-    })?;
+    let seed_hex = env::var("UNDERWRITE_ORACLE_SEED").unwrap_or_else(|_| {
+        "0909090909090909090909090909090909090909090909090909090909090909".to_string()
+    });
+    let seed: [u8; 32] = hex::decode(seed_hex)?
+        .try_into()
+        .map_err(|_| "UNDERWRITE_ORACLE_SEED must contain exactly 32 bytes of hex")?;
     let signing_key = SigningKey::from_bytes(&seed);
 
     if args.get(1).is_some_and(|arg| arg == "sign") {
