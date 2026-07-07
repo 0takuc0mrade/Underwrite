@@ -3,14 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [[ ! -f .env ]]; then
-  echo "Missing .env. Copy .env.example to .env and fill the Testnet values."
-  exit 1
+if [[ -f .env ]]; then
+  set -a
+  source .env
+  set +a
+else
+  echo "No .env file found; using existing environment variables."
 fi
-
-set -a
-source .env
-set +a
 
 : "${UNDERWRITE_CONTRACT_ADDRESS:?missing UNDERWRITE_CONTRACT_ADDRESS}"
 : "${DEMO_CLAIMANT_ACCOUNT:?missing DEMO_CLAIMANT_ACCOUNT}"

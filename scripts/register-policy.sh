@@ -3,14 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [[ ! -f .env ]]; then
-  echo "Missing .env. Copy .env.example to .env and fill the Testnet values."
-  exit 1
+if [[ -f .env ]]; then
+  set -a
+  source .env
+  set +a
+else
+  echo "No .env file found; using existing environment variables."
 fi
-
-set -a
-source .env
-set +a
 
 rpc_address="${ODRA_CASPER_LIVENET_RPC_ADDRESS:-${ODRA_CASPER_LIVENET_NODE_ADDRESS:-${CASPER_NODE_ADDRESS:-}}}"
 rpc_address="${rpc_address%/}"

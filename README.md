@@ -203,6 +203,11 @@ REQUIRE_CONTRACT_ARTIFACTS=1 scripts/build-contracts.sh
 Copy `.env.example` to `.env`, fill the Testnet account values, then follow
 `DEPLOYMENT.md`.
 
+For Railway hosting, use the root `Dockerfile` and follow
+`RAILWAY_DEPLOYMENT.md`. The hosted service runs the Next.js app, keeps Casper
+keys server-side, and stores Agent Request nonce/artifact data on a Railway
+volume mounted at `/app/deployments/requests`.
+
 Primary commands:
 
 ```bash
