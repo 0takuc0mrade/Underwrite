@@ -5,7 +5,7 @@ node_modules/
 .next*/
 out/
 *.tsbuildinfo
-resources/
+/resources/
 contract.env
 *.log
 wasm/
