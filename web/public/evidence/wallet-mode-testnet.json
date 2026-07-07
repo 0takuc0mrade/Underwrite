@@ -1,0 +1,15 @@
+{
+  "network": "casper-testnet",
+  "policyId": "MRC-CRG-2026-00481",
+  "claimantAccount": "account-hash-587b30d9c606eb99899eea6456271175931533250b442f15c0a168a726629f3a",
+  "underwriteContract": "hash-cc9065bf2ddf323697c42fccb015fdd170832557ddc455fb9f3217820b09a36f",
+  "settlementToken": "hash-1f2857fd127ffe3014d06734b5df882cf084fdd50bfab36c1e4020533c56793d",
+  "policyRegistrationDeployHash": "8779d088e9aa4bc70ed416c08805c778b2bdc4ff36b4be90c9e9589dfe52c6aa",
+  "agentRequestTimestamp": "2026-07-06T23:28:56Z",
+  "validClaimDeployHash": "e20fde64cf6bc114f99bdb6f5294080122ad4bb30cde58fcfec336553beb806b",
+  "validClaimStatus": "submitted",
+  "explorerLinks": {
+    "policyRegistration": "https://testnet.cspr.live/transaction/8779d088e9aa4bc70ed416c08805c778b2bdc4ff36b4be90c9e9589dfe52c6aa",
+    "validClaim": "https://testnet.cspr.live/transaction/e20fde64cf6bc114f99bdb6f5294080122ad4bb30cde58fcfec336553beb806b"
+  }
+}

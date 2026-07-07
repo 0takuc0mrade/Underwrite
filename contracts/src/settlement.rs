@@ -90,21 +90,33 @@ impl UnderwriteSettlement {
         oracle_public_key: String,
     ) {
         self.assert_owner();
-        self.policies.set(
-            &policy_number,
-            Policy {
-                claimant,
-                insured_value_minor,
-                currency,
-                oracle_public_key,
-                active: true,
-            },
-        );
-        self.env().emit_event(PolicyRegistered {
+        self.store_policy(
             policy_number,
             claimant,
             insured_value_minor,
-        });
+            currency,
+            oracle_public_key,
+        );
+    }
+
+    pub fn register_policy_self(
+        &mut self,
+        policy_number: String,
+        claimant: Address,
+        insured_value_minor: u64,
+        currency: String,
+        oracle_public_key: String,
+    ) {
+        if self.env().caller() != claimant {
+            self.env().revert(Error::InvalidClaimant);
+        }
+        self.store_policy(
+            policy_number,
+            claimant,
+            insured_value_minor,
+            currency,
+            oracle_public_key,
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -137,7 +149,7 @@ impl UnderwriteSettlement {
         if policy.claimant != claimant {
             self.env().revert(Error::InvalidClaimant);
         }
-        if policy.oracle_public_key != public_key.to_string() {
+        if policy.oracle_public_key != public_key.to_hex_string() {
             self.env().revert(Error::InvalidOracle);
         }
         if !self
@@ -147,7 +159,7 @@ impl UnderwriteSettlement {
             self.env().revert(Error::InvalidSignature);
         }
 
-        let now = self.env().get_block_time();
+        let now = block_time_seconds(self.env().get_block_time());
         if observed_at > now {
             self.env().revert(Error::FutureClaim);
         }
@@ -219,6 +231,31 @@ impl UnderwriteSettlement {
             self.env().revert(Error::NotAgent);
         }
     }
+
+    fn store_policy(
+        &mut self,
+        policy_number: String,
+        claimant: Address,
+        insured_value_minor: u64,
+        currency: String,
+        oracle_public_key: String,
+    ) {
+        self.policies.set(
+            &policy_number,
+            Policy {
+                claimant,
+                insured_value_minor,
+                currency,
+                oracle_public_key,
+                active: true,
+            },
+        );
+        self.env().emit_event(PolicyRegistered {
+            policy_number,
+            claimant,
+            insured_value_minor,
+        });
+    }
 }
 
 pub fn payout_percentage(status: u8, delay_hours: u64) -> u8 {
@@ -231,6 +268,14 @@ pub fn payout_percentage(status: u8, delay_hours: u64) -> u8 {
         72..=119 => 50,
         120..=239 => 75,
         _ => 100,
+    }
+}
+
+fn block_time_seconds(block_time: u64) -> u64 {
+    if block_time > 10_000_000_000 {
+        block_time / 1_000
+    } else {
+        block_time
     }
 }
 
@@ -280,7 +325,7 @@ mod tests {
             claimant,
             insured_value_minor,
             "USD".to_string(),
-            public_key.to_string(),
+            public_key.to_hex_string(),
         );
         TestSetup {
             settlement,
@@ -370,8 +415,78 @@ mod tests {
         assert_eq!(policy.claimant, claimant);
         assert_eq!(policy.insured_value_minor, INSURED_VALUE);
         assert_eq!(policy.currency, "USD");
-        assert_eq!(policy.oracle_public_key, setup.public_key.to_string());
+        assert_eq!(policy.oracle_public_key, setup.public_key.to_hex_string());
         assert!(policy.active);
+    }
+
+    #[test]
+    fn non_owner_cannot_use_operator_policy_registration() {
+        let mut setup = setup();
+        let env = setup.settlement.env().clone();
+        let non_owner = env.get_account(4);
+        let claimant = env.get_account(5);
+
+        env.set_caller(non_owner);
+        assert_eq!(
+            setup
+                .settlement
+                .try_register_policy(
+                    "MRC-CRG-2026-NONOWNER".to_string(),
+                    claimant,
+                    INSURED_VALUE,
+                    "USD".to_string(),
+                    setup.public_key.to_hex_string(),
+                )
+                .unwrap_err(),
+            Error::NotOwner.into()
+        );
+    }
+
+    #[test]
+    fn self_policy_registration_uses_the_wallet_caller_as_claimant() {
+        let mut setup = setup();
+        let env = setup.settlement.env().clone();
+        let wallet_claimant = env.get_account(4);
+        let policy_number = "MRC-CRG-2026-SELF";
+
+        env.set_caller(wallet_claimant);
+        setup.settlement.register_policy_self(
+            policy_number.to_string(),
+            wallet_claimant,
+            9_000_000,
+            "USD".to_string(),
+            setup.public_key.to_hex_string(),
+        );
+
+        let policy = setup.settlement.policy(policy_number.to_string()).unwrap();
+        assert_eq!(policy.claimant, wallet_claimant);
+        assert_eq!(policy.insured_value_minor, 9_000_000);
+        assert_eq!(policy.currency, "USD");
+        assert_eq!(policy.oracle_public_key, setup.public_key.to_hex_string());
+        assert!(policy.active);
+    }
+
+    #[test]
+    fn self_policy_registration_cannot_register_for_another_claimant() {
+        let mut setup = setup();
+        let env = setup.settlement.env().clone();
+        let wallet_caller = env.get_account(4);
+        let different_claimant = env.get_account(5);
+
+        env.set_caller(wallet_caller);
+        assert_eq!(
+            setup
+                .settlement
+                .try_register_policy_self(
+                    "MRC-CRG-2026-BADSELF".to_string(),
+                    different_claimant,
+                    INSURED_VALUE,
+                    "USD".to_string(),
+                    setup.public_key.to_hex_string(),
+                )
+                .unwrap_err(),
+            Error::InvalidClaimant.into()
+        );
     }
 
     #[test]
@@ -558,5 +673,11 @@ mod tests {
             50_000_000,
         )
         .is_err());
+    }
+
+    #[test]
+    fn block_time_seconds_accepts_seconds_or_millis() {
+        assert_eq!(block_time_seconds(1_782_661_353), 1_782_661_353);
+        assert_eq!(block_time_seconds(1_782_661_353_000), 1_782_661_353);
     }
 }

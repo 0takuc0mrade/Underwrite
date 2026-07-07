@@ -3,45 +3,270 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Underwrite Risk Settlement Console</title>
+    <title>Underwrite Testnet Evidence Console</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main>
-      <header>
-        <div class="brand">UNDERWRITE<span>/</span>RISK</div>
-        <div class="network">CASPER TESTNET <i></i></div>
+    <nav class="floating-nav" aria-label="Underwrite navigation">
+      <a class="nav-brand" href="#">
+        <svg viewBox="0 0 256 256" aria-hidden="true">
+          <path d="M 28 44 H 228 L 208 92 H 48 Z M 48 114 H 208 L 188 162 H 68 Z M 68 184 H 188 L 168 232 H 88 Z" />
+        </svg>
+        <span>Underwrite</span>
+      </a>
+      <div class="nav-pill">
+        <a href="#evidence">Evidence</a>
+        <a href="#how">Flow</a>
+        <a href="../README.md">README</a>
+        <a href="../DEMO_SCRIPT.md">Demo Script</a>
+      </div>
+      <a class="nav-cta" href="#evidence">View Testnet Run</a>
+    </nav>
+
+    <section class="spotlight-hero" style="height: 100dvh">
+      <div class="hero-base hero-zoom" aria-hidden="true"></div>
+      <div class="hero-reveal" id="spotlight-reveal" aria-hidden="true"></div>
+      <div class="hero-vignette" aria-hidden="true"></div>
+
+      <div class="hero-heading">
+        <p class="eyebrow hero-anim hero-fade" style="animation-delay: 0.1s">CASPER RISK SETTLEMENT</p>
+        <h1>
+          <span class="display-italic hero-anim hero-reveal-line" style="animation-delay: 0.25s">Signed risk</span>
+          <span class="hero-anim hero-reveal-line" style="animation-delay: 0.42s">settled on-chain.</span>
+        </h1>
+        <p class="hero-subcopy hero-anim hero-fade" style="animation-delay: 0.62s">
+          Trusted evidence comes in, the Rust agent verifies it, Casper checks
+          the rules, and the vault pays valid claims while bad claims fail
+          safely.
+        </p>
+      </div>
+
+      <div class="hero-caption hero-anim hero-fade" style="animation-delay: 0.75s">
+        <p>
+          Move your cursor across the settlement field. The reveal layer exposes
+          the verification path underneath the public Testnet result: policy,
+          attestation, replay protection, and stale-claim checks.
+        </p>
+      </div>
+
+      <div class="hero-proof-card hero-anim hero-fade" style="animation-delay: 0.9s">
+        <span>LIVE EVIDENCE</span>
+        <strong id="hero-policy-id">MRC-CRG-2026-00481</strong>
+        <p><b id="hero-payout">50%</b> payout tier from real Casper Testnet evidence.</p>
+        <a id="hero-valid-link" href="#evidence">Open valid claim</a>
+      </div>
+    </section>
+
+    <main id="evidence" class="dashboard-shell">
+      <header class="topbar">
+        <div>
+          <div class="brand">UNDERWRITE<span>/</span>EVIDENCE</div>
+          <p>Real Casper Testnet settlement console</p>
+        </div>
+        <div class="network-pill">
+          <i></i>
+          <span id="network-name">Loading Testnet evidence</span>
+        </div>
       </header>
-      <section class="hero">
-        <p>RISK ATTESTATION SETTLEMENT</p>
+
+      <section class="evidence-hero">
+        <p class="eyebrow">REAL CASPER TESTNET RUN</p>
         <h1>Signed risk in.<br />Replay-safe payout out.</h1>
+        <p class="lede">
+          Underwrite verifies a signed cargo-delay risk attestation, applies
+          deterministic policy rules, settles valid claims from a funded vault,
+          and rejects duplicate or stale claims on Casper Testnet.
+        </p>
+        <div class="hero-actions" id="primary-links"></div>
       </section>
-      <section class="rail">
-        <div class="step active"><b>01</b><span>Risk policy registered</span></div>
-        <div class="step active"><b>02</b><span>Oracle authenticated</span></div>
-        <div class="step active"><b>03</b><span>Claim attested</span></div>
-        <div class="step payout"><b>04</b><span>CEP-18 payout</span></div>
+
+      <section class="status-grid" aria-label="Testnet status">
+        <article class="status-card success">
+          <span>01</span>
+          <strong>Policy registered</strong>
+          <p>Risk policy is registered with claimant, insured value, currency, and authorized oracle.</p>
+        </article>
+        <article class="status-card success">
+          <span>02</span>
+          <strong>Valid claim settled</strong>
+          <p>Fresh signed attestation passed contract checks and submitted a vault payout.</p>
+        </article>
+        <article class="status-card rejected">
+          <span>03</span>
+          <strong>Duplicate claim rejected</strong>
+          <p>Replay protection rejected a second submission of the accepted claim.</p>
+        </article>
+        <article class="status-card rejected">
+          <span>04</span>
+          <strong>Stale claim rejected</strong>
+          <p>Freshness checks rejected an expired independently signed claim attestation.</p>
+        </article>
       </section>
+
       <section class="console">
-        <article>
-          <p class="label">ACTIVE TEMPLATE: CARGO_DELAY</p>
-          <h2>RISK-MRC-CRG-2026-00481</h2>
-          <dl>
-            <div><dt>Policy</dt><dd>MRC-CRG-2026-00481</dd></div>
-            <div><dt>Covered subject</dt><dd>MAEU-784239160</dd></div>
-            <div><dt>Trigger</dt><dd>delay_hours = 75</dd></div>
-            <div><dt>Evidence hash</dt><dd>67d12388...ad693</dd></div>
-          </dl>
+        <article class="panel span-2">
+          <div class="panel-heading">
+            <p class="eyebrow">SETTLEMENT SNAPSHOT</p>
+            <span id="evidence-source">Reading evidence...</span>
+          </div>
+          <dl class="facts" id="core-facts"></dl>
         </article>
-        <article class="settled">
-          <p class="label">VAULT SETTLEMENT</p>
-          <div class="seal">VERIFIED</div>
-          <strong>62,500.00 UWT</strong>
-          <span>50% of insured value</span>
-          <a href="#" aria-disabled="true">Testnet deploy pending</a>
+
+        <article class="panel payout-panel">
+          <p class="eyebrow">VAULT PAYOUT</p>
+          <div class="payout-ring">
+            <strong id="payout-percentage">--%</strong>
+            <span>payout tier</span>
+          </div>
+          <p class="amount"><span id="payout-amount">--</span> minor units</p>
+          <p class="muted">Cargo delay trigger: <b id="trigger-value">--</b> hours</p>
         </article>
       </section>
-      <footer>ODRA CONTRACTS / CEP-18 VAULT / REPLAY-PROTECTED RISK ATTESTATIONS</footer>
+
+      <section class="hash-grid" id="hash-grid" aria-label="Deploy hashes"></section>
+
+      <section class="how-it-works" id="how">
+        <div>
+          <p class="eyebrow">HOW UNDERWRITE WORKS</p>
+          <h2>Small settlement spine, clear failure modes.</h2>
+        </div>
+        <ol>
+          <li><b>Trusted evidence comes in.</b><span>An oracle or evidence source signs a risk observation.</span></li>
+          <li><b>The agent verifies it.</b><span>The Rust agent checks signature integrity and calculates deterministic payout.</span></li>
+          <li><b>The contract checks rules.</b><span>Casper enforces policy existence, claimant, oracle, freshness, replay, and payout bounds.</span></li>
+          <li><b>The vault pays valid claims.</b><span>A valid attestation records settlement and releases the bounded CEP-18 payout.</span></li>
+          <li><b>Bad claims are rejected.</b><span>Duplicate and stale claims produce explicit failed Testnet transactions.</span></li>
+        </ol>
+      </section>
+
+      <footer>
+        <span>ODRA CONTRACTS</span>
+        <span>CEP-18 VAULT</span>
+        <span>RUST AGENT</span>
+        <span>CASPER TESTNET EVIDENCE</span>
+      </footer>
     </main>
+
+    <script>
+      const fallbackEvidence = {
+        network: "casper-testnet",
+        chainName: "casper-test",
+        nodeAddress: "https://node.testnet.casper.network/rpc",
+        underwriteContract: "hash-9b94b24a2d92dce1d69df6c5d04eddf983b7894763a388f91c8aedc8ae523f6f",
+        settlementToken: "hash-b72d08a0ff2ad7653ca99c875b64290b521f150824473fa646388b6f85686b5a",
+        vault: "hash-9b94b24a2d92dce1d69df6c5d04eddf983b7894763a388f91c8aedc8ae523f6f",
+        policyId: "MRC-CRG-2026-00481",
+        coveredSubject: "MAEU-784239160",
+        triggerValue: 75,
+        agentAccount: "account-hash-587b30d9c606eb99899eea6456271175931533250b442f15c0a168a726629f3a",
+        claimantAccount: "account-hash-115d96efb1a8e35fbeea51e32bcbe158a9499d90255e36a6b1c370a90f21f8a1",
+        oraclePublicKey: "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618",
+        validClaimAttestationHash: "17898ae1d8f6bf2a8df6bba661fbc00bdd4de6d09558a1740566626293599114",
+        payoutPercentage: 50,
+        payoutAmountMinor: 6250000,
+        policyRegistrationDeployHash: "953dba5cebef2141b0f116c06a7e8a2ebd04c2f7e4b93f446d94db6ac6266efc",
+        validClaimDeployHash: "2129b97bdbee1d659a3dbe784420feb004ec6e411966ece3395e7828d824c23b",
+        duplicateClaimDeployHash: "9a4d4fa5700e0c19b5450a77618a01b1eef7945b42fa427d2a56ad6870d5ec3f",
+        staleClaimDeployHash: "941dc7fbfc16936a442628dd2200f7b9b7d2f00a5b334b6e3f7171fb181c1b2f",
+        explorerLinks: {
+          underwriteContract: "https://testnet.cspr.live/transaction/843e8ed8c6d0b8ed071dd5b97542367f147fcf9ababc114aed8149feb09bdad4",
+          settlementToken: "https://testnet.cspr.live/transaction/efadf65f932c36d6d20e8a794be33e9312d7fed4e180947376969388ea51d217",
+          vaultFunding: "https://testnet.cspr.live/transaction/0d89bc6f277b1ff569cd64e04df350c36946749275a6ffe0302bfdbb3f4648a5",
+          policyRegistration: "https://testnet.cspr.live/transaction/953dba5cebef2141b0f116c06a7e8a2ebd04c2f7e4b93f446d94db6ac6266efc",
+          validClaim: "https://testnet.cspr.live/transaction/2129b97bdbee1d659a3dbe784420feb004ec6e411966ece3395e7828d824c23b",
+          duplicateClaim: "https://testnet.cspr.live/transaction/9a4d4fa5700e0c19b5450a77618a01b1eef7945b42fa427d2a56ad6870d5ec3f",
+          staleClaim: "https://testnet.cspr.live/transaction/941dc7fbfc16936a442628dd2200f7b9b7d2f00a5b334b6e3f7171fb181c1b2f"
+        }
+      };
+
+      const evidencePaths = [
+        "/deployments/casper-testnet.json",
+        "../deployments/casper-testnet.json",
+        "deployments/casper-testnet.json"
+      ];
+
+      const short = (value, start = 14, end = 10) => {
+        if (!value) return "Not recorded";
+        return value.length > start + end + 3
+          ? `${value.slice(0, start)}...${value.slice(-end)}`
+          : value;
+      };
+
+      const explorer = (hash) => `https://testnet.cspr.live/transaction/${hash}`;
+
+      const linkFor = (evidence, key, hash) => {
+        const known = evidence.explorerLinks?.[key];
+        return known || (hash ? explorer(hash) : "");
+      };
+
+      async function loadEvidence() {
+        for (const path of evidencePaths) {
+          try {
+            const response = await fetch(path, { cache: "no-store" });
+            if (response.ok) {
+              return { evidence: await response.json(), source: path };
+            }
+          } catch (_error) {
+            // Try the next path; static file serving differs between demo setups.
+          }
+        }
+        return { evidence: fallbackEvidence, source: "bundled fallback evidence" };
+      }
+
+      function renderFacts(evidence) {
+        const facts = [
+          ["Network", `${evidence.network} / ${evidence.chainName}`],
+          ["Contract", evidence.underwriteContract],
+          ["Vault", evidence.vault],
+          ["Policy ID", evidence.policyId],
+          ["Agent account", evidence.agentAccount],
+          ["Claimant account", evidence.claimantAccount],
+          ["Attestation hash", evidence.validClaimAttestationHash],
+          ["Covered subject", evidence.coveredSubject]
+        ];
+
+        document.getElementById("core-facts").innerHTML = facts
+          .map(([label, value]) => `<div><dt>${label}</dt><dd title="${value || ""}">${short(value, 22, 14)}</dd></div>`)
+          .join("");
+      }
+
+      function renderLinks(evidence) {
+        const rows = [
+          ["Settlement token deploy", evidence.settlementTokenDeployHash, linkFor(evidence, "settlementToken", evidence.settlementTokenDeployHash)],
+          ["Underwrite contract deploy", evidence.underwriteContractDeployHash, linkFor(evidence, "underwriteContract", evidence.underwriteContractDeployHash)],
+          ["Vault funding", evidence.vaultFundingDeployHash, linkFor(evidence, "vaultFunding", evidence.vaultFundingDeployHash)],
+          ["Policy registration", evidence.policyRegistrationDeployHash, linkFor(evidence, "policyRegistration", evidence.policyRegistrationDeployHash)],
+          ["Valid claim settled", evidence.validClaimDeployHash, linkFor(evidence, "validClaim", evidence.validClaimDeployHash)],
+          ["Duplicate rejected", evidence.duplicateClaimDeployHash, linkFor(evidence, "duplicateClaim", evidence.duplicateClaimDeployHash)],
+          ["Stale rejected", evidence.staleClaimDeployHash, linkFor(evidence, "staleClaim", evidence.staleClaimDeployHash)]
+        ];
+
+        document.getElementById("hash-grid").innerHTML = rows
+          .filter(([, hash]) => Boolean(hash))
+          .map(([label, hash, url]) => `
+            <article class="hash-card">
+              <p>${label}</p>
+              <code title="${hash}">${short(hash, 18, 12)}</code>
+              <a href="${url}" target="_blank" rel="noreferrer">Open explorer</a>
+            </article>
+          `)
+          .join("");
+
+        document.getElementById("primary-links").innerHTML = `
+          <a href="${linkFor(evidence, "validClaim", evidence.validClaimDeployHash)}" target="_blank" rel="noreferrer">View valid claim</a>
+          <a href="${linkFor(evidence, "duplicateClaim", evidence.duplicateClaimDeployHash)}" target="_blank" rel="noreferrer">View replay rejection</a>
+        `;
+      }
+
+      loadEvidence().then(({ evidence, source }) => {
+        document.getElementById("network-name").textContent = `${evidence.network} / ${evidence.chainName}`;
+        document.getElementById("evidence-source").textContent = `Source: ${source}`;
+        document.getElementById("payout-percentage").textContent = `${evidence.payoutPercentage}%`;
+        document.getElementById("payout-amount").textContent = Number(evidence.payoutAmountMinor).toLocaleString();
+        document.getElementById("trigger-value").textContent = evidence.triggerValue;
+        renderFacts(evidence);
+        renderLinks(evidence);
+      });
+    </script>
   </body>
 </html>

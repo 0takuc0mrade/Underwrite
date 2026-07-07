@@ -17,14 +17,21 @@
   "validClaimAttestationHash": "",
   "validClaimDeployHash": "",
   "duplicateClaimDeployHash": "",
+  "staleClaimDeployHash": "",
   "staleOrInvalidClaimDeployHash": "",
+  "validClaimStatus": "pending",
+  "duplicateClaimStatus": "pending",
+  "staleClaimStatus": "pending",
   "payoutAmountMinor": 6250000,
+  "payoutPercentage": 50,
   "timestamp": "",
+  "updatedAt": "",
   "explorerLinks": {
     "underwriteContract": "",
     "settlementToken": "",
     "validClaim": "",
     "duplicateClaim": "",
+    "staleClaim": "",
     "staleOrInvalidClaim": ""
   },
   "notes": [

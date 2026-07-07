@@ -11,6 +11,7 @@ const defaults = {
   chainName: process.env.CASPER_CHAIN_NAME ?? "casper-test",
   nodeAddress:
     process.env.CASPER_NODE_ADDRESS ??
+    process.env.ODRA_CASPER_LIVENET_NODE_ADDRESS ??
     process.env.ODRA_CASPER_LIVENET_RPC_ADDRESS ??
     "https://node.testnet.casper.network/rpc",
   underwriteContract: "",
@@ -30,14 +31,21 @@ const defaults = {
   validClaimAttestationHash: "",
   validClaimDeployHash: "",
   duplicateClaimDeployHash: "",
+  staleClaimDeployHash: "",
   staleOrInvalidClaimDeployHash: "",
+  validClaimStatus: "pending",
+  duplicateClaimStatus: "pending",
+  staleClaimStatus: "pending",
   payoutAmountMinor: 6250000,
+  payoutPercentage: 50,
   timestamp: "",
+  updatedAt: "",
   explorerLinks: {
     underwriteContract: "",
     settlementToken: "",
     validClaim: "",
     duplicateClaim: "",
+    staleClaim: "",
     staleOrInvalidClaim: "",
   },
   notes: [],
@@ -55,8 +63,15 @@ const aliases = {
   attestation: "validClaimAttestationHash",
   validDeploy: "validClaimDeployHash",
   duplicateDeploy: "duplicateClaimDeployHash",
-  staleDeploy: "staleOrInvalidClaimDeployHash",
+  staleDeploy: "staleClaimDeployHash",
+  staleClaimDeployHash: "staleClaimDeployHash",
+  staleOrInvalidDeploy: "staleOrInvalidClaimDeployHash",
   payout: "payoutAmountMinor",
+  payoutAmount: "payoutAmountMinor",
+  payoutPercentage: "payoutPercentage",
+  validStatus: "validClaimStatus",
+  duplicateStatus: "duplicateClaimStatus",
+  staleStatus: "staleClaimStatus",
 };
 
 function readCurrent() {
@@ -110,7 +125,9 @@ if (!command || command === "-h" || command === "--help") {
 }
 
 const current = readCurrent();
-current.timestamp = new Date().toISOString();
+const now = new Date().toISOString();
+if (!current.timestamp) current.timestamp = now;
+current.updatedAt = now;
 
 if (command === "init") {
   // Keep defaults plus environment-derived values.

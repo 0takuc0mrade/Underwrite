@@ -12,11 +12,34 @@ set -a
 source .env
 set +a
 
-: "${ODRA_CASPER_LIVENET_RPC_ADDRESS:?missing ODRA_CASPER_LIVENET_RPC_ADDRESS}"
+rpc_address="${ODRA_CASPER_LIVENET_RPC_ADDRESS:-${ODRA_CASPER_LIVENET_NODE_ADDRESS:-${CASPER_NODE_ADDRESS:-}}}"
+rpc_address="${rpc_address%/}"
+if [[ "$rpc_address" != */rpc ]]; then
+  rpc_address="${rpc_address}/rpc"
+fi
+if [[ "${UNDERWRITE_RPC_DEBUG_PROXY:-0}" == "1" ]]; then
+  rpc_address="http://127.0.0.1:${RPC_DEBUG_PORT:-7777}/rpc"
+fi
+node_base="${rpc_address%/rpc}"
+export ODRA_CASPER_LIVENET_NODE_ADDRESS="$rpc_address"
+export ODRA_CASPER_LIVENET_RPC_ADDRESS="$rpc_address"
+events_url="${ODRA_CASPER_LIVENET_EVENTS_URL:-${node_base}/events}"
+events_url="${events_url%/}"
+if [[ "$events_url" == */events/main ]]; then
+  events_url="${events_url%/main}"
+fi
+export ODRA_CASPER_LIVENET_EVENTS_URL="$events_url"
+export ODRA_LOG_LEVEL="${ODRA_LOG_LEVEL:-debug}"
+
+: "${ODRA_CASPER_LIVENET_NODE_ADDRESS:?missing ODRA_CASPER_LIVENET_NODE_ADDRESS}"
+: "${ODRA_CASPER_LIVENET_EVENTS_URL:?missing ODRA_CASPER_LIVENET_EVENTS_URL}"
 : "${ODRA_CASPER_LIVENET_CHAIN_NAME:?missing ODRA_CASPER_LIVENET_CHAIN_NAME}"
 : "${ODRA_CASPER_LIVENET_SECRET_KEY_PATH:?missing ODRA_CASPER_LIVENET_SECRET_KEY_PATH}"
 
 node scripts/record-evidence.mjs init
+
+echo "==> Pre-deployment artifact check"
+REQUIRE_CONTRACT_ARTIFACTS=1 scripts/build-contracts.sh
 
 echo "==> Deploying SettlementToken and UnderwriteSettlement with Odra livenet"
 echo "==> This command prints deployed addresses. Copy them into deployments/casper-testnet.json."

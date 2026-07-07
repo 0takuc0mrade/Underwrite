@@ -114,7 +114,10 @@ Implemented:
 - Agent-side Ed25519 verification and attestation generation
 - Backward-compatible cargo observation fixture
 - Generic signed `cargo_delay` risk-attestation fixture
-- Static dashboard mockup for the protocol flow
+- Odra livenet helpers for policy registration and claim submission
+- Wallet-mode contract support through `register_policy_self` for caller-owned policies
+- Testnet demo orchestration scripts with evidence JSON updates
+- Next.js operator dashboard with landing, operations, evidence, policy, and agent pages
 
 Fully working locally:
 
@@ -128,14 +131,21 @@ cargo run -p underwrite-agent -- fixtures/signed-risk-attestation.cargo-delay.js
 The cargo-delay fixture produces a 75-hour trigger, a 50% payout tier, and
 `6250000` minor units.
 
-Still pending for submission:
+Ready for submission:
 
-- Casper Testnet deployment
+- Casper Testnet deployment evidence
 - Real settlement token and vault addresses
 - Policy registration deploy hash
 - Valid claim deploy hash
-- Duplicate/stale rejection evidence
+- Duplicate and stale rejection evidence
+- Wallet-mode policy registration evidence
+- Agent Request settlement evidence
 - Dashboard links updated with real explorer records
+
+Wallet-mode note: the deployed wallet-mode contract includes
+`register_policy_self`, which allows a wallet caller to register a policy only
+for itself. Claim settlement remains agent-authorized, so user wallets own
+policies while the agent verifies evidence and submits settlement claims.
 
 Workspace contract tests pass under nightly Rust. Nightly is required because
 Odra 2.8.1 depends on `odra-macros`, which uses nightly-only `box_patterns`.
@@ -180,6 +190,14 @@ cargo install cargo-odra
 scripts/build-contracts.sh
 ```
 
+For deployment artifact generation, `cargo-odra` is required:
+
+```bash
+REQUIRE_CONTRACT_ARTIFACTS=1 scripts/build-contracts.sh
+```
+
+`cargo-odra` also needs `wasm-opt` and `wasm-strip` from Binaryen/WABT.
+
 ## Casper Testnet Deployment
 
 Copy `.env.example` to `.env`, fill the Testnet account values, then follow
@@ -189,11 +207,14 @@ Primary commands:
 
 ```bash
 scripts/build-contracts.sh
+scripts/preflight-testnet.sh
 scripts/deploy-testnet.sh
 scripts/register-policy.sh
+scripts/register-policy-self.sh
 scripts/run-agent.sh
-scripts/submit-claim.sh
+scripts/submit-valid-claim.sh
 scripts/attempt-duplicate-claim.sh
+scripts/generate-stale-attestation.sh
 scripts/attempt-stale-claim.sh
 ```
 
@@ -201,32 +222,74 @@ Automated today:
 
 - local workspace verification
 - Odra livenet deploy for token + settlement + vault funding
+- Odra livenet policy registration helper
+- Odra livenet self-registration helper for wallet-mode contract testing
+- Odra livenet valid claim submission helper
+- Odra livenet duplicate and stale attempt helpers
+- signed stale attestation generator for independent stale rejection evidence
 - generic risk-attestation agent run
 - evidence JSON initialization/update helper
+- two-phase preflight: default deploy phase before deployment, `PREFLIGHT_PHASE=demo` after `UNDERWRITE_CONTRACT_ADDRESS` exists
+- Next.js local operator mode guarded by `UNDERWRITE_ENABLE_OPERATOR_ACTIONS`
+- Public Agent Request Mode guarded by `UNDERWRITE_ENABLE_AGENT_REQUESTS`
 
-Manual or pending:
+Remaining manual items:
 
-- deploy hash capture from node/explorer output
-- policy registration call helper
-- claim submission call helper
-- duplicate/stale Testnet rejection evidence
+- optional claimant token balance screenshot or query
+- demo video capture
 
-## Casper Testnet Deployment Evidence
+## Final Testnet Evidence
 
-Deployment evidence is not complete yet. Fill this section after the Testnet
-run.
+Real Casper Testnet deployment and demo evidence was captured on 2026-06-28.
+The canonical local evidence file is `deployments/casper-testnet.json`.
 
 | Artifact | Status | Value |
 | --- | --- | --- |
-| Network | Pending | Casper Testnet |
-| Settlement token address | Pending | TBD |
-| Underwrite settlement address | Pending | TBD |
-| Vault funding deploy hash | Pending | TBD |
-| Policy registration deploy hash | Pending | TBD |
-| Valid claim deploy hash | Pending | TBD |
-| Duplicate claim rejection evidence | Pending | TBD |
-| Stale claim rejection evidence | Pending | TBD |
-| Explorer links | Pending | TBD |
+| Network | Complete | Casper Testnet (`casper-test`) |
+| Settlement token address | Complete | `hash-b72d08a0ff2ad7653ca99c875b64290b521f150824473fa646388b6f85686b5a` |
+| Underwrite settlement address | Complete | `hash-9b94b24a2d92dce1d69df6c5d04eddf983b7894763a388f91c8aedc8ae523f6f` |
+| Vault funding deploy hash | Complete | [`0d89bc6f277b1ff569cd64e04df350c36946749275a6ffe0302bfdbb3f4648a5`](https://testnet.cspr.live/transaction/0d89bc6f277b1ff569cd64e04df350c36946749275a6ffe0302bfdbb3f4648a5) |
+| Policy registration deploy hash | Complete | [`953dba5cebef2141b0f116c06a7e8a2ebd04c2f7e4b93f446d94db6ac6266efc`](https://testnet.cspr.live/transaction/953dba5cebef2141b0f116c06a7e8a2ebd04c2f7e4b93f446d94db6ac6266efc) |
+| Valid claim deploy hash | Complete | [`2129b97bdbee1d659a3dbe784420feb004ec6e411966ece3395e7828d824c23b`](https://testnet.cspr.live/transaction/2129b97bdbee1d659a3dbe784420feb004ec6e411966ece3395e7828d824c23b) |
+| Duplicate claim rejection evidence | Complete | [`9a4d4fa5700e0c19b5450a77618a01b1eef7945b42fa427d2a56ad6870d5ec3f`](https://testnet.cspr.live/transaction/9a4d4fa5700e0c19b5450a77618a01b1eef7945b42fa427d2a56ad6870d5ec3f), rejected with `User error: 8` |
+| Stale claim rejection evidence | Complete | [`941dc7fbfc16936a442628dd2200f7b9b7d2f00a5b334b6e3f7171fb181c1b2f`](https://testnet.cspr.live/transaction/941dc7fbfc16936a442628dd2200f7b9b7d2f00a5b334b6e3f7171fb181c1b2f), rejected with `User error: 11` |
+| Payout | Complete | 50%, `6250000` minor units |
+
+The successful demo flow registered policy `MRC-CRG-2026-00481`, generated a
+fresh signed cargo-delay attestation, settled the valid claim, rejected a
+duplicate replay attempt, and rejected a separately signed stale claim.
+
+## Wallet Mode And Agent Request Evidence
+
+A newer wallet-mode Testnet run is captured in
+`web/public/evidence/wallet-mode-testnet.json` and rendered by the Next.js
+`/evidence` page.
+
+| Artifact | Status | Value |
+| --- | --- | --- |
+| Wallet-mode settlement contract | Complete | `hash-cc9065bf2ddf323697c42fccb015fdd170832557ddc455fb9f3217820b09a36f` |
+| Wallet-mode settlement token | Complete | `hash-1f2857fd127ffe3014d06734b5df882cf084fdd50bfab36c1e4020533c56793d` |
+| Wallet policy registration | Complete | [`8779d088e9aa4bc70ed416c08805c778b2bdc4ff36b4be90c9e9589dfe52c6aa`](https://testnet.cspr.live/transaction/8779d088e9aa4bc70ed416c08805c778b2bdc4ff36b4be90c9e9589dfe52c6aa) |
+| Agent Request settlement | Complete | [`e20fde64cf6bc114f99bdb6f5294080122ad4bb30cde58fcfec336553beb806b`](https://testnet.cspr.live/transaction/e20fde64cf6bc114f99bdb6f5294080122ad4bb30cde58fcfec336553beb806b) |
+
+Wallet Mode lets a user connect Casper Wallet and register a policy through
+`register_policy_self`. Agent Request Mode then asks the wallet to sign an
+off-chain verification request. The backend verifies that signature, creates
+request-scoped evidence and attestation files, and submits settlement through
+the authorized agent/relayer. Casper still enforces policy ownership, oracle
+trust, freshness, replay protection, payout bounds, and vault settlement.
+
+Request nonce/idempotency tracking is file-backed at
+`deployments/requests/request-store.json`, with generated request artifacts
+ignored by git. If durable storage cannot be initialized, the code falls back
+to an in-memory store for local MVP/demo use only. Production deployments
+should use Redis, Postgres, SQLite, or another durable store.
+
+Clean old generated request artifacts with:
+
+```bash
+scripts/clean-request-artifacts.sh
+```
 
 Use `deployments/casper-testnet.example.json` as the committed evidence shape.
 Write real evidence to ignored file `deployments/casper-testnet.json`:
@@ -234,7 +297,7 @@ Write real evidence to ignored file `deployments/casper-testnet.json`:
 ```bash
 node scripts/record-evidence.mjs init
 node scripts/record-evidence.mjs set contract=<address> token=<address>
-node scripts/record-evidence.mjs note "policy registration pending"
+node scripts/record-evidence.mjs note "valid claim submitted; explorer hash captured from Testnet output"
 ```
 
 ## Demo Path
@@ -245,19 +308,88 @@ node scripts/record-evidence.mjs note "policy registration pending"
 3. Show template, policy ID, risk event, trigger metric/value, payout, and
    attestation hash.
 4. Run `cargo test --workspace` to show local contract verification.
-5. After deployment, show Casper Testnet policy registration, valid payout, and
-   duplicate or stale rejection evidence.
+5. After deployment, run `scripts/run-testnet-demo.sh` to show Casper Testnet
+   policy registration, valid payout, duplicate rejection, and separately signed
+   stale rejection evidence.
 
-## Dashboard
+## Frontend Product Structure
 
-Serve the static dashboard locally:
+The primary submission frontend is the Next.js app in `web/`:
 
 ```bash
-python3 -m http.server 4174 --directory dashboard
+cd web
+npm install
+npm run dev
 ```
 
-The dashboard is currently a protocol mockup. Replace pending explorer links and
-static values after Testnet deployment.
+Then open:
+
+```text
+http://localhost:3000
+```
+
+The frontend is split into product pages:
+
+- `/` is the landing and overview page.
+- `/operate` is the operator console for wallet identity, policy registration,
+  agent verification, and claim submission.
+- `/evidence` is the Casper Testnet audit trail with explorer links.
+- `/policy` is the policy, vault, token, contract, claimant, agent, and oracle
+  admin view.
+- `/agent` explains the evidence-to-claim workflow in simple language.
+
+The product model is:
+
+1. Your wallet owns the policy and identifies you as the claimant.
+2. The Underwrite agent verifies signed evidence and calculates the deterministic payout tier.
+3. Casper enforces policy, claimant, oracle, freshness, replay, and payout rules.
+4. The vault pays valid claims automatically.
+5. Operator Mode provides a server-side administration fallback.
+
+Wallet Mode contract support:
+
+- Existing `register_policy` remains owner/admin-gated for Operator Mode.
+- New `register_policy_self` supports wallet-owned policy registration by
+  requiring the transaction caller to equal the claimant.
+- `settle_claim` remains agent-authorized; users own policies, agents process
+  claims, and Casper enforces payouts.
+- Real wallet-mode policy registration and Agent Request settlement evidence
+  are displayed on `/evidence`.
+
+The frontend supports two operating modes on `/operate`:
+
+- **Wallet Mode (default):** the primary user-facing path. Shows a workflow
+  with honest status labels: connect wallet, review policy terms, register
+  policy with wallet, request agent verification, and track claim result.
+  Frontend support for browser-wallet `register_policy_self` is implemented.
+  Agent Request Mode allows wallet-authenticated users to securely request
+  agent verification via off-chain signatures. The server verifies the wallet
+  signature, creates request-scoped files, runs the agent, and submits the
+  settlement claim without exposing private keys to the browser.
+- **Operator Mode:** server-side administration fallback. Run the app locally
+  with your own funded Testnet key and enable server-side operations:
+
+```text
+UNDERWRITE_ENABLE_OPERATOR_ACTIONS=true
+```
+
+In local operator mode, `/operate` calls `POST /api/operations/run`, which maps
+to the existing scripts:
+
+- `scripts/register-policy.sh`
+- `scripts/run-agent.sh`
+- `scripts/submit-valid-claim.sh`
+
+If operator actions are disabled, the UI says so intentionally, explains that
+the deployment is protecting keys, and does not show fake hashes.
+
+The older static dashboard remains available as a no-build fallback:
+
+```bash
+python3 -m http.server 4174
+```
+
+Then open `http://localhost:4174/dashboard/`.
 
 ## Security Scope
 
