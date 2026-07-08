@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createPublicKey, verify as verifyNodeSignature } from "node:crypto";
+import { createHash, createPublicKey, verify as verifyNodeSignature } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -90,7 +90,7 @@ async function defaultRunCommand(command: string, args: string[], env: NodeJS.Pr
 }
 
 function defaultVerifySignature(input: AgentRequestInput, message: string) {
-  return loadCasperSdk().then(({ CLPublicKey, verifyMessageSignature }) => {
+  return loadCasperSdk().then(async ({ CLPublicKey, verifyMessageSignature }) => {
     const publicKey = CLPublicKey.fromHex(input.claimantPublicKey);
     const candidates = signatureByteCandidates(input.signature);
 
@@ -102,7 +102,10 @@ function defaultVerifySignature(input: AgentRequestInput, message: string) {
       }
     }
 
-    return verifyRawEd25519Signature(input.claimantPublicKey, message, candidates);
+    return (
+      verifyRawEd25519Signature(input.claimantPublicKey, message, candidates) ||
+      (await verifyRawSecp256k1Signature(input.claimantPublicKey, message, candidates))
+    );
   });
 }
 
@@ -124,6 +127,24 @@ function verifyRawEd25519Signature(publicKeyHex: string, message: string, candid
   return candidates.some((signature) => {
     try {
       return signature.length === 64 && verifyNodeSignature(null, rawMessage, publicKey, signature);
+    } catch {
+      return false;
+    }
+  });
+}
+
+async function verifyRawSecp256k1Signature(publicKeyHex: string, message: string, candidates: Uint8Array[]) {
+  if (!publicKeyHex.startsWith("02")) return false;
+
+  const publicKey = Buffer.from(publicKeyHex.slice(2), "hex");
+  if (publicKey.length !== 33) return false;
+
+  const { verify } = await import("@noble/secp256k1");
+  const messageHash = createHash("sha256").update(Buffer.from(message, "utf8")).digest();
+
+  return candidates.some((signature) => {
+    try {
+      return verify(signature, messageHash, publicKey, { strict: false });
     } catch {
       return false;
     }
