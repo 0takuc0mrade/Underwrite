@@ -45,4 +45,4 @@ ENV NODE_ENV=production
 EXPOSE 3000
 
 ENTRYPOINT ["scripts/railway-entrypoint.sh"]
-CMD ["npm", "run", "start", "--prefix", "web"]
+CMD ["sh", "-c", "npm run start --prefix web -- -H 0.0.0.0 -p ${PORT:-3000}"]
