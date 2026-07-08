@@ -110,14 +110,59 @@ export async function requestWalletMessageSignature(
     throw new Error("User rejected the message signature request.");
   }
 
-  if (result.signatureHex) {
-    return result.signatureHex;
+  return normalizeWalletMessageSignature(result);
+}
+
+export function normalizeWalletMessageSignature(result: unknown): string {
+  const signature = extractWalletSignature(result);
+  const normalized = signature.replace(/^0x/i, "").trim();
+
+  if (!/^[0-9a-fA-F]+$/.test(normalized) || normalized.length % 2 !== 0) {
+    throw new Error("Wallet returned a signature in an unsupported format.");
   }
-  
-  if (result.signature) {
-    // If it's a Uint8Array, convert to hex
-    return Buffer.from(result.signature).toString("hex");
+
+  return normalized.toLowerCase();
+}
+
+function extractWalletSignature(result: unknown): string {
+  if (typeof result === "string") return result;
+  if (!result || typeof result !== "object") {
+    throw new Error("Wallet did not return a valid signature.");
   }
-  
+
+  const candidate = result as {
+    signature?: unknown;
+    signatureHex?: unknown;
+    signatureBytes?: unknown;
+  };
+
+  if (typeof candidate.signatureHex === "string") return candidate.signatureHex;
+  if (typeof candidate.signature === "string") return candidate.signature;
+  if (typeof candidate.signatureBytes === "string") return candidate.signatureBytes;
+
+  const bytes =
+    bytesFromUnknown(candidate.signature) ??
+    bytesFromUnknown(candidate.signatureBytes);
+  if (bytes) return bytesToHex(bytes);
+
+  if (candidate.signature && typeof candidate.signature === "object") {
+    return extractWalletSignature(candidate.signature);
+  }
+
   throw new Error("Wallet did not return a valid signature.");
+}
+
+function bytesFromUnknown(value: unknown): Uint8Array | null {
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (Array.isArray(value) && value.every((item) => Number.isInteger(item))) {
+    return Uint8Array.from(value as number[]);
+  }
+  return null;
+}
+
+function bytesToHex(bytes: Uint8Array) {
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }

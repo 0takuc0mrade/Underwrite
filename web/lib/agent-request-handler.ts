@@ -91,12 +91,49 @@ async function defaultRunCommand(command: string, args: string[], env: NodeJS.Pr
 function defaultVerifySignature(input: AgentRequestInput, message: string) {
   return loadCasperSdk().then(({ CLPublicKey, verifyMessageSignature }) => {
     const publicKey = CLPublicKey.fromHex(input.claimantPublicKey);
-    let sigBytes = Uint8Array.from(Buffer.from(input.signature, "hex"));
-    if (sigBytes.length === 65) {
-      sigBytes = sigBytes.slice(1);
+    const candidates = signatureByteCandidates(input.signature);
+
+    for (const sigBytes of candidates) {
+      try {
+        if (verifyMessageSignature(publicKey, message, sigBytes)) return true;
+      } catch {
+        // Try the next normalized representation before reporting failure.
+      }
     }
-    return verifyMessageSignature(publicKey, message, sigBytes);
+
+    return false;
   });
+}
+
+function signatureByteCandidates(signature: string) {
+  const normalized = signature.trim().replace(/^0x/i, "");
+  const hexCandidates = new Set<string>();
+  addHexCandidate(hexCandidates, normalized);
+
+  // Older browser code accidentally hex-encoded the ASCII signature string.
+  // Accepting the decoded form lets in-flight clients recover after redeploys
+  // without weakening verification: the cryptographic check still has to pass.
+  if (normalized.length > 130 && normalized.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(normalized)) {
+    addHexCandidate(hexCandidates, Buffer.from(normalized, "hex").toString("utf8").trim().replace(/^0x/i, ""));
+  }
+
+  const byteCandidates = new Map<string, Uint8Array>();
+  for (const hex of hexCandidates) {
+    const bytes = Uint8Array.from(Buffer.from(hex, "hex"));
+    byteCandidates.set(Buffer.from(bytes).toString("hex"), bytes);
+    if (bytes.length === 65 && (bytes[0] === 1 || bytes[0] === 2)) {
+      const withoutAlgorithmByte = bytes.slice(1);
+      byteCandidates.set(Buffer.from(withoutAlgorithmByte).toString("hex"), withoutAlgorithmByte);
+    }
+  }
+
+  return Array.from(byteCandidates.values());
+}
+
+function addHexCandidate(candidates: Set<string>, value: string) {
+  if (/^[0-9a-fA-F]+$/.test(value) && value.length % 2 === 0) {
+    candidates.add(value.toLowerCase());
+  }
 }
 
 async function defaultPublicKeyToAccountHash(publicKeyHex: string) {
