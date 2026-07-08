@@ -206,23 +206,27 @@ async function defaultPublicKeyToAccountHash(publicKeyHex: string) {
   return `account-hash-${accountHashHex}`;
 }
 
-async function loadCasperSdk() {
-  const sdkModule = (await import("casper-js-sdk")) as unknown as {
-    default?: {
-      CLPublicKey: { fromHex(publicKeyHex: string): { toAccountHash(): Uint8Array } };
-      verifyMessageSignature: (
-        publicKey: unknown,
-        message: string,
-        signatureBytes: Uint8Array
-      ) => boolean;
-    };
-  };
-  const sdk = sdkModule.default;
+async function loadCasperSdk(): Promise<CasperSdkHelpers> {
+  const sdkModule = (await import("casper-js-sdk")) as unknown as CasperSdkModule;
+  const sdk = sdkModule.default ?? sdkModule;
   if (!sdk?.CLPublicKey || !sdk.verifyMessageSignature) {
     throw new Error("Casper SDK wallet verification helpers are unavailable.");
   }
-  return sdk;
+  return sdk as CasperSdkHelpers;
 }
+
+type CasperSdkHelpers = {
+  CLPublicKey: { fromHex(publicKeyHex: string): { toAccountHash(): Uint8Array } };
+  verifyMessageSignature: (
+    publicKey: unknown,
+    message: string,
+    signatureBytes: Uint8Array
+  ) => boolean;
+};
+
+type CasperSdkModule = Partial<CasperSdkHelpers> & {
+  default?: CasperSdkHelpers;
+};
 
 function json(status: number, body: Record<string, unknown>) {
   return Response.json(body, { status });
