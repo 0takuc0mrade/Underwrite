@@ -13,7 +13,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ status: "error", message: "Invalid JSON body." }, { status: 400 });
   }
 
-  const rpcUrl = process.env.NEXT_PUBLIC_CASPER_RPC_URL;
+  const rpcUrl =
+    process.env.NEXT_PUBLIC_CASPER_RPC_URL ||
+    process.env.ODRA_CASPER_LIVENET_RPC_ADDRESS ||
+    process.env.ODRA_CASPER_LIVENET_NODE_ADDRESS ||
+    process.env.CASPER_NODE_ADDRESS;
   if (!rpcUrl) {
     return NextResponse.json({ status: "error", message: "Server is missing Casper RPC URL configuration." }, { status: 500 });
   }

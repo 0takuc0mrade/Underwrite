@@ -175,6 +175,13 @@ type CasperWalletLike = {
 
 type WalletStepStatus = "implemented" | "coming-next" | "agent-handled" | "requires-wallet" | "requires-deployment";
 
+type RuntimeConfig = {
+  contractHash: string;
+  rpcUrl: string;
+  chainName: string;
+  explorerBaseUrl: string;
+};
+
 const walletModeSteps: { number: string; title: string; status: WalletStepStatus; detail: string }[] = [
   {
     number: "1",
@@ -856,6 +863,37 @@ export function OperationsConsole() {
   const [agentRequestState, setAgentRequestState] = useState<"idle" | "signing" | "verifying" | "submitting" | "done">("idle");
   const [agentRequestError, setAgentRequestError] = useState<string | null>(null);
   const [agentRequestResult, setAgentRequestResult] = useState<{ deployHash?: string, explorerUrl?: string, message?: string } | null>(null);
+  const [runtimeConfig, setRuntimeConfig] = useState<RuntimeConfig>({
+    contractHash: "",
+    rpcUrl: "",
+    chainName: "casper-test",
+    explorerBaseUrl: "https://testnet.cspr.live"
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRuntimeConfig() {
+      try {
+        const response = await fetch("/api/config", { cache: "no-store" });
+        if (!response.ok) return;
+        const config = (await response.json()) as Partial<RuntimeConfig>;
+        if (!cancelled) {
+          setRuntimeConfig((current) => ({
+            contractHash: config.contractHash || current.contractHash,
+            rpcUrl: config.rpcUrl || current.rpcUrl,
+            chainName: config.chainName || current.chainName,
+            explorerBaseUrl: config.explorerBaseUrl || current.explorerBaseUrl
+          }));
+        }
+      } catch {
+        // Keep the default config; button actions will show a precise error.
+      }
+    }
+    loadRuntimeConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function updateField(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -939,15 +977,15 @@ export function OperationsConsole() {
     setWalletDeployHash(null);
 
     try {
-      const contractHash = process.env.NEXT_PUBLIC_UNDERWRITE_CONTRACT_HASH;
-      const rpcUrl = process.env.NEXT_PUBLIC_CASPER_RPC_URL;
-      const chainName = process.env.NEXT_PUBLIC_CASPER_CHAIN_NAME || "casper-test";
+      const contractHash = runtimeConfig.contractHash;
+      const rpcUrl = runtimeConfig.rpcUrl;
+      const chainName = runtimeConfig.chainName || "casper-test";
       
       if (!contractHash) {
-        throw new Error("Contract hash is missing. Set NEXT_PUBLIC_UNDERWRITE_CONTRACT_HASH in .env");
+        throw new Error("Contract hash is missing. Set UNDERWRITE_CONTRACT_ADDRESS or NEXT_PUBLIC_UNDERWRITE_CONTRACT_HASH in Railway variables, then redeploy.");
       }
       if (!rpcUrl) {
-        throw new Error("RPC URL is missing. Set NEXT_PUBLIC_CASPER_RPC_URL in .env");
+        throw new Error("RPC URL is missing. Set CASPER_NODE_ADDRESS or NEXT_PUBLIC_CASPER_RPC_URL in Railway variables, then redeploy.");
       }
 
       const provider = getCasperWalletProvider();
@@ -997,10 +1035,10 @@ export function OperationsConsole() {
     setAgentRequestResult(null);
 
     try {
-      const contractHash = process.env.NEXT_PUBLIC_UNDERWRITE_CONTRACT_HASH;
-      const chainName = process.env.NEXT_PUBLIC_CASPER_CHAIN_NAME || "casper-test";
+      const contractHash = runtimeConfig.contractHash;
+      const chainName = runtimeConfig.chainName || "casper-test";
       
-      if (!contractHash) throw new Error("Contract hash missing.");
+      if (!contractHash) throw new Error("Contract hash missing. Set UNDERWRITE_CONTRACT_ADDRESS or NEXT_PUBLIC_UNDERWRITE_CONTRACT_HASH in Railway variables, then redeploy.");
       
       const provider = getCasperWalletProvider();
       if (!provider) throw new Error("Casper wallet not found.");
@@ -1124,7 +1162,7 @@ export function OperationsConsole() {
                           <div className="rounded-2xl border border-signal/20 bg-signal/10 p-4">
                             <p className="text-sm font-semibold text-signal">Registration submitted</p>
                             <a 
-                              href={`${process.env.NEXT_PUBLIC_CASPER_EXPLORER_BASE_URL || 'https://testnet.cspr.live'}/transaction/${walletDeployHash}`}
+                              href={`${runtimeConfig.explorerBaseUrl}/transaction/${walletDeployHash}`}
                               target="_blank" rel="noreferrer"
                               className="mt-1 block font-mono text-xs text-signal/80 underline hover:text-signal break-all"
                             >
@@ -1184,7 +1222,7 @@ export function OperationsConsole() {
                           <div className="rounded-2xl border border-signal/20 bg-signal/10 p-4">
                             <p className="text-sm font-semibold text-signal">Settlement submitted</p>
                             <a 
-                              href={agentRequestResult.explorerUrl || `${process.env.NEXT_PUBLIC_CASPER_EXPLORER_BASE_URL || 'https://testnet.cspr.live'}/transaction/${agentRequestResult.deployHash}`}
+                              href={agentRequestResult.explorerUrl || `${runtimeConfig.explorerBaseUrl}/transaction/${agentRequestResult.deployHash}`}
                               target="_blank" rel="noreferrer"
                               className="mt-1 block font-mono text-xs text-signal/80 underline hover:text-signal break-all"
                             >
