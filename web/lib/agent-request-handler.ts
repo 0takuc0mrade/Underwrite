@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createPublicKey, verify as verifyNodeSignature } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
@@ -101,7 +102,31 @@ function defaultVerifySignature(input: AgentRequestInput, message: string) {
       }
     }
 
-    return false;
+    return verifyRawEd25519Signature(input.claimantPublicKey, message, candidates);
+  });
+}
+
+function verifyRawEd25519Signature(publicKeyHex: string, message: string, candidates: Uint8Array[]) {
+  if (!publicKeyHex.startsWith("01")) return false;
+
+  const rawPublicKey = Buffer.from(publicKeyHex.slice(2), "hex");
+  if (rawPublicKey.length !== 32) return false;
+
+  // Ed25519 SubjectPublicKeyInfo header for a raw 32-byte public key.
+  const spkiHeader = Buffer.from("302a300506032b6570032100", "hex");
+  const publicKey = createPublicKey({
+    key: Buffer.concat([spkiHeader, rawPublicKey]),
+    format: "der",
+    type: "spki"
+  });
+  const rawMessage = Buffer.from(message, "utf8");
+
+  return candidates.some((signature) => {
+    try {
+      return signature.length === 64 && verifyNodeSignature(null, rawMessage, publicKey, signature);
+    } catch {
+      return false;
+    }
   });
 }
 
@@ -165,6 +190,25 @@ function json(status: number, body: Record<string, unknown>) {
   return Response.json(body, { status });
 }
 
+function errorJson(status: number, code: string, message: string) {
+  return json(status, { status: "error", code, message });
+}
+
+function validationCode(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("policy")) return "invalid_policy";
+  if (normalized.includes("claimant")) return "invalid_claimant";
+  if (normalized.includes("nonce")) return "invalid_nonce";
+  if (normalized.includes("evidence")) return "invalid_evidence";
+  if (normalized.includes("signature")) return "invalid_signature";
+  if (normalized.includes("timestamp") || normalized.includes("expired") || normalized.includes("future")) {
+    return "invalid_timestamp";
+  }
+  if (normalized.includes("chain")) return "chain_mismatch";
+  if (normalized.includes("contract")) return "contract_mismatch";
+  return "invalid_request";
+}
+
 function safeErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Agent workflow failed.";
   return safeOutput(message) || "Agent workflow failed.";
@@ -186,7 +230,7 @@ export function createAgentRequestHandler(deps: HandlerDeps = {}) {
     try {
       body = (await request.json()) as Record<string, unknown>;
     } catch {
-      return json(400, { status: "error", message: "Invalid JSON body." });
+      return errorJson(400, "invalid_json", "Invalid JSON body.");
     }
 
     const env = await loadEnv();
@@ -200,26 +244,26 @@ export function createAgentRequestHandler(deps: HandlerDeps = {}) {
 
     const validation = validateAgentRequestBody(body, env, now());
     if (!validation.ok) {
-      return json(validation.status, { status: "error", message: validation.message });
+      return errorJson(validation.status, validationCode(validation.message), validation.message);
     }
     const input = validation.value;
 
     if (!rateLimitStore.check(input.claimantPublicKey, now())) {
-      return json(429, { status: "error", message: "Rate limit exceeded. Please try again later." });
+      return errorJson(429, "rate_limited", "Rate limit exceeded. Please try again later.");
     }
 
     await requestStore.cleanupExpiredRequests(now());
     if (await requestStore.hasSeenRequest(input.nonce, now())) {
-      return json(400, { status: "error", message: "Request nonce has already been used." });
+      return errorJson(400, "nonce_replayed", "Request nonce has already been used.");
     }
 
     const message = buildAgentRequestMessage(input);
     try {
       if (!(await verifySignature(input, message))) {
-        return json(401, { status: "error", message: "Invalid wallet signature." });
+        return errorJson(401, "invalid_wallet_signature", "Invalid wallet signature.");
       }
     } catch {
-      return json(400, { status: "error", message: "Signature verification failed." });
+      return errorJson(400, "signature_verification_failed", "Signature verification failed.");
     }
 
     await requestStore.markRequestSeen(input.nonce, {

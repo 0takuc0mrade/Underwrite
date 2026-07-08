@@ -1083,7 +1083,8 @@ export function OperationsConsole() {
 
       const data = await res.json();
       if (!res.ok || data.status === "error") {
-        throw new Error(data.message || "Failed to submit request.");
+        const message = data.message || "Failed to submit request.";
+        throw new Error(data.code ? `${data.code}: ${message}` : message);
       }
 
       setAgentRequestState("done");
