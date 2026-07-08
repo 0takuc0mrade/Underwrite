@@ -91,8 +91,17 @@ async function defaultRunCommand(command: string, args: string[], env: NodeJS.Pr
 
 function defaultVerifySignature(input: AgentRequestInput, message: string) {
   return loadCasperSdk().then(async ({ CLPublicKey, verifyMessageSignature }) => {
-    const publicKey = CLPublicKey.fromHex(input.claimantPublicKey);
+    if (input.claimantPublicKey.startsWith("account-hash-")) return false;
+
+    let publicKey: unknown;
+    try {
+      publicKey = CLPublicKey.fromHex(input.claimantPublicKey);
+    } catch {
+      return false;
+    }
+
     const candidates = signatureByteCandidates(input.signature);
+    if (candidates.length === 0) return false;
 
     for (const sigBytes of candidates) {
       try {
@@ -110,45 +119,53 @@ function defaultVerifySignature(input: AgentRequestInput, message: string) {
 }
 
 function verifyRawEd25519Signature(publicKeyHex: string, message: string, candidates: Uint8Array[]) {
-  if (!publicKeyHex.startsWith("01")) return false;
+  try {
+    if (!publicKeyHex.startsWith("01")) return false;
 
-  const rawPublicKey = Buffer.from(publicKeyHex.slice(2), "hex");
-  if (rawPublicKey.length !== 32) return false;
+    const rawPublicKey = Buffer.from(publicKeyHex.slice(2), "hex");
+    if (rawPublicKey.length !== 32) return false;
 
-  // Ed25519 SubjectPublicKeyInfo header for a raw 32-byte public key.
-  const spkiHeader = Buffer.from("302a300506032b6570032100", "hex");
-  const publicKey = createPublicKey({
-    key: Buffer.concat([spkiHeader, rawPublicKey]),
-    format: "der",
-    type: "spki"
-  });
-  const rawMessage = Buffer.from(message, "utf8");
+    // Ed25519 SubjectPublicKeyInfo header for a raw 32-byte public key.
+    const spkiHeader = Buffer.from("302a300506032b6570032100", "hex");
+    const publicKey = createPublicKey({
+      key: Buffer.concat([spkiHeader, rawPublicKey]),
+      format: "der",
+      type: "spki"
+    });
+    const rawMessage = Buffer.from(message, "utf8");
 
-  return candidates.some((signature) => {
-    try {
-      return signature.length === 64 && verifyNodeSignature(null, rawMessage, publicKey, signature);
-    } catch {
-      return false;
-    }
-  });
+    return candidates.some((signature) => {
+      try {
+        return signature.length === 64 && verifyNodeSignature(null, rawMessage, publicKey, signature);
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
 }
 
 async function verifyRawSecp256k1Signature(publicKeyHex: string, message: string, candidates: Uint8Array[]) {
-  if (!publicKeyHex.startsWith("02")) return false;
+  try {
+    if (!publicKeyHex.startsWith("02")) return false;
 
-  const publicKey = Buffer.from(publicKeyHex.slice(2), "hex");
-  if (publicKey.length !== 33) return false;
+    const publicKey = Buffer.from(publicKeyHex.slice(2), "hex");
+    if (publicKey.length !== 33) return false;
 
-  const { verify } = await import("@noble/secp256k1");
-  const messageHash = createHash("sha256").update(Buffer.from(message, "utf8")).digest();
+    const { verify } = await import("@noble/secp256k1");
+    const messageHash = createHash("sha256").update(Buffer.from(message, "utf8")).digest();
 
-  return candidates.some((signature) => {
-    try {
-      return verify(signature, messageHash, publicKey, { strict: false });
-    } catch {
-      return false;
-    }
-  });
+    return candidates.some((signature) => {
+      try {
+        return verify(signature, messageHash, publicKey, { strict: false });
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
 }
 
 function signatureByteCandidates(signature: string) {
@@ -235,6 +252,11 @@ function safeErrorMessage(error: unknown) {
   return safeOutput(message) || "Agent workflow failed.";
 }
 
+function safeVerificationDetail(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return safeOutput(message).slice(0, 140) || "unknown verifier error";
+}
+
 export function createAgentRequestHandler(deps: HandlerDeps = {}) {
   const root = deps.repoRoot ?? repoRoot;
   const requestsDir = path.join(root, "deployments", "requests");
@@ -283,8 +305,13 @@ export function createAgentRequestHandler(deps: HandlerDeps = {}) {
       if (!(await verifySignature(input, message))) {
         return errorJson(401, "invalid_wallet_signature", "Invalid wallet signature.");
       }
-    } catch {
-      return errorJson(400, "signature_verification_failed", "Signature verification failed.");
+    } catch (error) {
+      return json(400, {
+        status: "error",
+        code: "signature_verification_failed",
+        message: "Signature verification failed.",
+        detail: safeVerificationDetail(error)
+      });
     }
 
     await requestStore.markRequestSeen(input.nonce, {
